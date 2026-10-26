@@ -75,9 +75,12 @@ class MainWindow(QMainWindow):
         self.bank_page, self.stats_page = BankPage(self), StatsPage(self)
         self.jobs_page, self.ach_page = JobsPage(self), AchievementsPage(self)
         self.shop_page, self.help_page = ShopPage(self), HelpPage(self)
+        self.page_wrap = {}
         for w in (self.lobby, self.bank_page, self.stats_page, self.jobs_page, self.ach_page, self.shop_page,
                   self.help_page):
-            self.stack.addWidget(w)
+            wrap = w if w is self.lobby else self.scrollable(w)
+            self.page_wrap[w] = wrap
+            self.stack.addWidget(wrap)
         mid.addWidget(self.stack, 1)
         root.addLayout(mid, 1)
         self.logbox = QTextEdit()
@@ -145,6 +148,7 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.lbl_bank)
         self.lbl_debt = QLabel()
         self.lbl_debt.setObjectName('debt')
+        self.lbl_debt.setWordWrap(True)             # bank debt + shark debt must both stay readable
         lay.addWidget(self.lbl_debt)
         lay.addSpacing(4)
         self.lbl_level = section('')
@@ -682,9 +686,19 @@ class MainWindow(QMainWindow):
         if not self.handle_endings():
             self.process_events()
 
+    @staticmethod
+    def scrollable(page):
+        """Long pages (statistics, achievements...) scroll instead of clipping their last rows."""
+        sc = QScrollArea()
+        sc.setWidgetResizable(True)
+        sc.setFrameShape(QFrame.Shape.NoFrame)
+        sc.setWidget(page)
+        sc.viewport().setAutoFillBackground(False)
+        return sc
+
     def show_page(self, page):
         page.refresh()
-        self.stack.setCurrentWidget(page)
+        self.stack.setCurrentWidget(self.page_wrap.get(page, page))
 
     def show_bank(self):
         self.show_page(self.bank_page)

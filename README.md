@@ -9,6 +9,19 @@ net worth, ranked per difficulty).
     pip install PyQt6
     python gamble_gui.py
 
+## Screenshots
+
+| | |
+|:--:|:--:|
+| **The lobby** — 16 games, life actions, one day at a time | **Tournament** — a 10-day race against your own net worth |
+| <img src="docs/screenshots/01-lobby.png" alt="Lobby" width="100%"> | <img src="docs/screenshots/01b-tournament.png" alt="Tournament running" width="100%"> |
+| **Blackjack** — hit, stand, split, double | **Keno** — pick 10 of 40, up to 2000x |
+| <img src="docs/screenshots/07-blackjack.png" alt="Blackjack hand" width="100%"> | <img src="docs/screenshots/02-keno.png" alt="Keno round" width="100%"> |
+| **Statistics** — net worth curve, per-game RTP, records | **Bank & loans** — savings, credit, the loan shark |
+| <img src="docs/screenshots/03-statistics.png" alt="Statistics" width="100%"> | <img src="docs/screenshots/04-bank-shark.png" alt="Bank and the loan shark" width="100%"> |
+| **Achievements & endings** — 36 goals, 6 ways out | **How to play** — every rule, payout and hotkey |
+| <img src="docs/screenshots/05-achievements.png" alt="Achievements and endings" width="100%"> | <img src="docs/screenshots/06-how-to-play.png" alt="How to play" width="100%"> |
+
 ## Moving from the old single-file version
 Copy your `savegame.txt` (and `gamble_meta.txt`, `gamble_settings.txt` if you have them) into this folder,
 next to `gamble_gui.py`. Old saves load fine; the console version can still read the new save files.

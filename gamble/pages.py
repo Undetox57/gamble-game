@@ -33,6 +33,16 @@ def put(table, r, c, text, color=None, align=None):
     table.setItem(r, c, it)
 
 
+ROW_H = 30          # a table row is this tall in the stylesheet
+
+
+def fit_height(t):
+    """Ask for room for every row - without it the layout squeezes a long table down to one
+    visible row (it shrinks to its minimum sizeHint) and the rest of the data is unreachable."""
+    t.setMinimumHeight(max(1, t.rowCount()) * ROW_H + 46)      # + header + frame
+    return t
+
+
 def make_table(headers, rows):
     t = QTableWidget(rows, len(headers))
     t.setHorizontalHeaderLabels(headers)
@@ -40,6 +50,8 @@ def make_table(headers, rows):
     t.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
     t.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
     t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+    if rows:
+        fit_height(t)
     return t
 
 
@@ -404,6 +416,7 @@ class StatsPage(QWidget):
         # the last rounds, newest first - what has been happening to the wallet lately
         bets = s.bet_history[-20:]
         self.bets.setRowCount(max(1, len(bets)))
+        fit_height(self.bets)                          # the row count changes here, not at build time
         if not bets:
             put(self.bets, 0, 0, 'No rounds played yet in this run.', None,
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
