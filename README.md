@@ -53,6 +53,16 @@ Antivirus false positives, hashes and submission templates: `docs\YAYINLAMA.md`.
 MIT - see LICENSE.
 
 
+## Download (players)
+
+No Python needed. Grab a build from the **[Releases](https://github.com/Undetox57/gamble-game/releases)** page:
+
+- `GambleGame-1.0.0-Setup.exe` - installer, no admin rights, uninstall keeps your saves
+- `GambleGame-1.0.0-win64.zip` - unpack it and double-click `GambleGame.exe` (keep the `_internal` folder)
+
+Read `OKUMA-BENIM.txt` inside either package for the short version. Saves live next to the exe
+(`savegame.txt`, `gamble_meta.txt`, `gamble_settings.txt`) - copy those three files to move your progress.
+
 ## Balance simulator
     python simulate.py rtp                 return-to-player of every game (100% = fair, lower = the house wins)
     python simulate.py run                 full runs with 4 kinds of bots on every difficulty
@@ -62,7 +72,7 @@ To change the economy, edit the numbers in `gamble/config.py` or the payout tabl
 `gamble/rules.py`, then run the simulator again.
 
 ## Keyboard
-Lobby: 1-9 and 0, then Alt+1..5 start the games (the key is shown on each button), W work, D pass day,
+Lobby: 1-9 and 0, then Alt+1..6 start the games (the key is shown on each button), W work, D pass day,
 O go out, B bank, J jobs, S shop, T statistics, A achievements, P settings, H or F1 help.
 In a game the keys are written on the buttons; Space usually does the main thing.
 Esc goes back, F11 toggles fullscreen, Ctrl+Q quits.
