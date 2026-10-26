@@ -1,6 +1,7 @@
 """Game state and its save files. Still reads/writes the console version's savegame.txt format:
 the first lines are identical, everything new goes into "x:key:value" lines the old game ignores."""
 import os
+import shutil
 
 from . import config
 from .config import (ACH_BY_KEY, BANK_INTEREST_CAP_PER_LEVEL, DIFFICULTIES, ENDINGS, GAME_KEYS, JOB_BY_KEY,
@@ -20,7 +21,8 @@ class GameState:
                  'sb_stake', 'sb_target', 'sb_count',   # the streak side bet (0 = none)
                  'worked_days',                         # career tenure (C3): days worked in this run
                  'shark_debt', 'shark_due',           # loan shark: owed TL and the day he comes to collect
-                 'tour_active', 'tour_day', 'tour_net']  # tournament: running?, day it started, net worth then
+                 'tour_active', 'tour_day', 'tour_net',  # tournament: running?, day it started, net worth then
+                 'games_today']                       # games played in the current day (5 ends the day)
 
     def __init__(self):
         self.set_defaults()
@@ -136,26 +138,30 @@ class GameState:
             stats = new_stats()
             extras, items, profit = {}, {}, {k: 0 for k in GAME_KEYS}
             history, bets = [], []
+            damaged = 0
             for line in lines[10:]:
                 p = line.strip().split(':')
-                if len(p) == 4 and p[0] in stats:
-                    stats[p[0]] = {'played': int(p[1]), 'won': int(p[2]), 'lost': int(p[3])}
-                elif len(p) == 3 and p[0] == 'x':
-                    key, val = p[1], p[2]
-                    if key.startswith('i_'):
-                        items[key[2:]] = int(val)
-                    elif key.startswith('p_') and key[2:] in profit:
-                        profit[key[2:]] = int(float(val))
-                    elif key == 'hist':
-                        history = [(int(d), int(v)) for d, v in (x.split('=') for x in val.split(',') if x)]
-                    elif key == 'bets':
-                        for one in val.split(','):         # the last rounds: "coin=10,dice=-5"
-                            name, sep, delta = one.partition('=')
-                            if sep and name in GAME_KEYS:
-                                bets.append((name, int(delta)))
-                        bets = bets[-BET_HISTORY_LIMIT:]
-                    else:
-                        extras[key] = val
+                try:
+                    if len(p) == 4 and p[0] in stats:
+                        stats[p[0]] = {'played': int(p[1]), 'won': int(p[2]), 'lost': int(p[3])}
+                    elif len(p) == 3 and p[0] == 'x':
+                        key, val = p[1], p[2]
+                        if key.startswith('i_'):
+                            items[key[2:]] = int(val)
+                        elif key.startswith('p_') and key[2:] in profit:
+                            profit[key[2:]] = int(float(val))
+                        elif key == 'hist':
+                            history = [(int(d), int(v)) for d, v in (x.split('=') for x in val.split(',') if x)]
+                        elif key == 'bets':
+                            for one in val.split(','):     # the last rounds: "coin=10,dice=-5"
+                                name, sep, delta = one.partition('=')
+                                if sep and name in GAME_KEYS:
+                                    bets.append((name, int(delta)))
+                            bets = bets[-BET_HISTORY_LIMIT:]
+                        else:
+                            extras[key] = val
+                except Exception:
+                    damaged += 1                     # one bad line must not cost the whole run
             extra_ints = {k: int(float(extras.get(k, -99 if k == 'last_therapy_day' else 0)))
                           for k in self.EXTRA_INT}
             job = extras.get('job', 'courier')
@@ -171,10 +177,16 @@ class GameState:
                 setattr(self, k, v)
             self.history = history or [(self.day, self.net_worth)]
             self.bet_history = bets
+            if damaged:
+                return f'Warning: {damaged} unreadable line(s) in the save were skipped.'
             return None
         except Exception as e:
+            try:                                     # never let the next save() erase the old run
+                shutil.copyfile(config.SAVE_FILE, config.SAVE_FILE + '.broken')
+            except Exception:
+                pass
             self.set_defaults()
-            return f'Could not load game: {e}'
+            return f'Could not load game: {e} - a copy was kept as {os.path.basename(config.SAVE_FILE)}.broken'
 
     def save(self):
         try:
@@ -231,31 +243,30 @@ class MetaState:
         return True
 
     def load(self):
+        lines = []
         try:
             if os.path.exists(config.META_FILE):
                 with open(config.META_FILE, 'r', encoding='utf-8') as f:
-                    for line in f:
-                        kind, _, key = line.strip().partition(':')
-                        if kind == 'ach' and key in ACH_BY_KEY:
-                            self.achievements.add(key)
-                        elif kind == 'end' and key in ENDINGS:
-                            self.endings.add(key)
-                        elif kind == 'rec':                  # rec:<difficulty>:<best net worth>
-                            diff, _, val = key.partition(':')
-                            if diff in DIFFICULTIES:
-                                try:
-                                    self.records[diff] = max(self.records[diff], int(float(val)))
-                                except ValueError:
-                                    pass
-                        elif kind == 'tou':                  # tou:<difficulty>:<best tournament score>
-                            diff, _, val = key.partition(':')
-                            if diff in DIFFICULTIES:
-                                try:
-                                    self.tournaments[diff] = max(self.tournaments[diff], int(float(val)))
-                                except ValueError:
-                                    pass
+                    lines = f.readlines()
         except Exception:
-            pass
+            return
+        for line in lines:                          # one bad line must not drop the lines after it
+            try:
+                kind, _, key = line.strip().partition(':')
+                if kind == 'ach' and key in ACH_BY_KEY:
+                    self.achievements.add(key)
+                elif kind == 'end' and key in ENDINGS:
+                    self.endings.add(key)
+                elif kind == 'rec':                  # rec:<difficulty>:<best net worth>
+                    diff, _, val = key.partition(':')
+                    if diff in DIFFICULTIES:
+                        self.records[diff] = max(self.records[diff], int(float(val)))
+                elif kind == 'tou':                  # tou:<difficulty>:<best tournament score>
+                    diff, _, val = key.partition(':')
+                    if diff in DIFFICULTIES:
+                        self.tournaments[diff] = max(self.tournaments[diff], int(float(val)))
+            except Exception:
+                continue
 
     def save(self):
         try:

@@ -246,9 +246,11 @@ def flash_css(widget, css, ms=260):
     t.setSingleShot(True)
 
     def restore():
-        if hasattr(widget, '_fx_orig_css'):
+        if not hasattr(widget, '_fx_orig_css'):
+            return
+        if widget.styleSheet() == css:               # still our flash: put the original back
             widget.setStyleSheet(widget._fx_orig_css)
-            del widget._fx_orig_css
+        del widget._fx_orig_css                       # a permanent repaint won - never undo it
     t.timeout.connect(restore)
     t.start(ms)
     widget._fx_restore = t

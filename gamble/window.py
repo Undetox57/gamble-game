@@ -265,7 +265,7 @@ class MainWindow(QMainWindow):
                 row.addWidget(b)
                 self.game_btns[k] = b
                 i = LOBBY_ORDER.index(k)
-                self.lobby_keys[(DIGITS[i % 10], i >= 10)] = b          # 1-9, 0, then Alt+1..5
+                self.lobby_keys[(DIGITS[i % 10], i >= 10)] = b          # 1-9, 0, then Alt+1..6
             lay.addLayout(row)
 
         def grid(items):
@@ -360,7 +360,7 @@ class MainWindow(QMainWindow):
         super().keyPressEvent(e)
 
     def go_back(self):
-        if self.focusWidget() is self.bet_spin:            # Esc first leaves the bet box
+        if self.focusWidget() in (self.bet_spin, self.sb_spin):   # Esc first leaves the amount box
             self.setFocus()
             return
         cur = self.stack.currentWidget()
@@ -414,6 +414,8 @@ class MainWindow(QMainWindow):
             self.apply_settings()
 
     def open_settings(self):
+        if self.round_running():
+            return self.log('Finish the hand first - the bet is still on the table.', 'warn')
         SettingsDialog(self).exec()
 
     def show_window(self):
@@ -432,6 +434,7 @@ class MainWindow(QMainWindow):
         target = int(value)
         if self._ticker is not None:
             self._ticker.stop()
+            self._ticker.deleteLater()                # one animation per wallet roll, not one per session
             self._ticker = None
         if not (self.settings.effects and self.anim_factor() > 0 and self._last_balance is not None
                 and target != self._last_balance and alive(self.lbl_balance)):
@@ -598,7 +601,7 @@ class MainWindow(QMainWindow):
         self.lbl_status.setText('\n'.join(status))
 
         if s.tour_active:                       # TOURNAMENT panel: running window vs. the entry button
-            day_no = min(s.day - s.tour_day, TOURNAMENT_DAYS)
+            day_no = min(s.day - s.tour_day + 1, TOURNAMENT_DAYS)   # day 1 on the day you entered
             self.tour_btn.setText(f'Tournament running  •  day {day_no}/{TOURNAMENT_DAYS}')
             self.tour_btn.setEnabled(False)
             self.tour_lbl.setText(
@@ -667,20 +670,31 @@ class MainWindow(QMainWindow):
             self.process_events()
 
     # ---- navigation
+    def round_running(self):
+        """True while a bet is still on the table: nothing may navigate away, or the round would
+        be destroyed before it settles and the player could replay the same bet for free."""
+        return self.game_page is not None and bool(getattr(self.game_page, 'in_progress', False))
+
     def leave_game_page(self):
         if self.game_page is not None:
+            if self.round_running():
+                return False                     # settle the hand first
             self.stack.removeWidget(self.game_page)
             self.game_page.deleteLater()
             self.game_page = None
+        return True
 
     def set_page(self, w):
-        self.leave_game_page()
+        if not self.leave_game_page():
+            return False
         self.game_page = w
         self.stack.addWidget(w)
         self.stack.setCurrentWidget(w)
+        return True
 
     def show_lobby(self):
-        self.leave_game_page()
+        if not self.leave_game_page():
+            return self.log('Finish the hand first - the bet is still on the table.', 'warn')
         self.stack.setCurrentWidget(self.lobby)
         self.refresh()
         if not self.handle_endings():
@@ -697,6 +711,8 @@ class MainWindow(QMainWindow):
         return sc
 
     def show_page(self, page):
+        if self.round_running():                 # F1 / B / T ... during a round must not void it
+            return self.log('Finish the hand first - the bet is still on the table.', 'warn')
         page.refresh()
         self.stack.setCurrentWidget(self.page_wrap.get(page, page))
 
@@ -720,6 +736,8 @@ class MainWindow(QMainWindow):
 
     def start_game(self, key):
         s, bet = self.state, self.bet_spin.value()
+        if self.round_running():
+            return self.log('Finish the hand first - the bet is still on the table.', 'warn')
         if s.level < UNLOCK[key]:
             return self.log(f'{GAME_NAMES[key]} unlocks at level {UNLOCK[key]}.', 'warn')
         if s.balance < 1 or bet <= 0 or bet > s.balance:

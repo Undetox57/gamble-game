@@ -6,7 +6,8 @@ Messages go through `log_fn(msg, kind)`; kind is info / win / loss / warn.
 import math
 import random
 
-from .config import (ACH_BY_KEY, BANK_INTEREST, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET, DIFFICULTIES,
+from .config import (ACH_BY_KEY, BANK_INTEREST, CLEAN_REWARD, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET,
+                     DIFFICULTIES,
                      ENDINGS, EVENT_CHANCE, GAME_NAMES, ITEM_BY_KEY, JOB_BY_KEY, JOBS, LEVEL_EXP, MAX_BET,
                      PERMANENT_ITEMS, REFORMED_MIN_GAMES, SHARK_CLEAN, SHARK_COLLECT_MENTAL,
                      SHARK_COLLECT_SHARE, SHARK_DAYS, SHARK_RATE, SHARK_SPIRAL_MULT,
@@ -136,7 +137,7 @@ class Engine:
             'level_5': s.level >= 5, 'level_10': s.level >= 10, 'clean_10': s.clean_streaks >= 1,
             'rest_bottom': 0 < s.mental <= 10, 'events_5': s.events_seen >= 5,
             'collector': all(s.has(k) for k in PERMANENT_ITEMS),
-            'big_5k': s.best_win >= 5000, 'clean_30': s.no_gamble_days >= 30,
+            'big_5k': s.best_win >= 5000, 'clean_30': s.clean_streaks >= 3,
         }
         for k, ok in conds.items():
             if ok:
@@ -146,6 +147,14 @@ class Engine:
     def advance_day(self, dec_cooldown=True):
         s = self.state
         s.day += 1
+        # the day that just ended decides the clean-day counter: gambling at any point during it
+        # breaks the streak. This is the ONE place it is counted, so a day that ends by the
+        # 5-game limit, by working or by passing the day all score the same way.
+        if s.games_today > 0:
+            s.no_gamble_days = 0
+        else:
+            s.no_gamble_days += 1
+            self.check_clean_reward()
         s.games_today = 0
         if s.out_days > 0:
             s.out_days -= 1
@@ -187,13 +196,14 @@ class Engine:
     def check_clean_reward(self):
         s = self.state
         if s.no_gamble_days >= CLEAN_TARGET:
-            s.no_gamble_days = 0
+            s.no_gamble_days -= CLEAN_TARGET        # keep the overflow (an event can add 2 days at once)
             s.clean_streaks += 1
-            s.balance += 150
-            self.add_mental(25)
-            self.gain_exp(30)
-            self.log(f'{CLEAN_TARGET} days without gambling! Willpower reward: +150 TL, +25 mental health, '
-                     f'+30 exp. (Clean streak {s.clean_streaks}/{CLEAN_STREAKS_FOR_ENDING})', 'win')
+            cash, mental, exp = CLEAN_REWARD
+            s.balance += cash
+            self.add_mental(mental)
+            self.gain_exp(exp)
+            self.log(f'{CLEAN_TARGET} days without gambling! Willpower reward: +{cash} TL, +{mental} mental '
+                     f'health, +{exp} exp. (Clean streak {s.clean_streaks}/{CLEAN_STREAKS_FOR_ENDING})', 'win')
 
     # ---- playing games
     def apply_item_modifiers(self, delta, win, bet):
@@ -210,7 +220,9 @@ class Engine:
                 delta += bonus
                 notes.append(f'The shark cleaned your winnings: +{bonus} TL')
         elif win is False and s.items.get('insurance', 0) > 0:
-            refund = min(bet // 2, -delta)
+            refund = max(0, min(bet // 2, -delta))
+            if refund <= 0:                        # a 1 TL bet refunds nothing - keep the item
+                return delta, insured, notes
             delta += refund
             s.items['insurance'] -= 1
             insured = True
@@ -373,11 +385,7 @@ class Engine:
             s.skipped_days += 1
             self.add_mental(rest)
             self.log(f'You rested and regained some mental health (+{rest}).', 'win')
-            s.no_gamble_days += 1
-            self.check_clean_reward()
-        else:
-            s.no_gamble_days = 0
-        self.advance_day()
+        self.advance_day()                          # the clean-day counter lives in advance_day now
         self.save()
 
     def go_work(self):
@@ -406,8 +414,6 @@ class Engine:
         else:
             self.log(f'You went to work as {job["name"]} ({self.tenure_title()})! You earned {pay} TL and '
                      f'gained {job["exp"]} experience.', 'win')
-        s.no_gamble_days += 1
-        self.check_clean_reward()
         self.save()
         return True
 
@@ -481,8 +487,8 @@ class Engine:
         s.balance -= amt
         s.debt -= amt
         self.log(f'Repaid {amt:,} TL. Your debt is now {s.debt:,} TL.', 'win')
-        if s.debt == 0:
-            self.award('debt_free')
+        if s.debt == 0 and s.shark_debt <= 0:
+            self.award('debt_free')                 # owing nobody means owing nobody
         self.save()
         return True
 
@@ -499,6 +505,7 @@ class Engine:
         s.shark_due = s.day + SHARK_DAYS             # every advance buys exactly SHARK_DAYS of time
         self.log(f'Took {amt:,} TL from the shark. You owe {s.shark_debt:,} TL, '
                  f'he collects on day {s.shark_due} ({SHARK_RATE * 100:.0f}% a day).', 'warn')
+        self.award('borrower')                      # black money counts as a loan too
         self.save()
         return True
 
@@ -515,6 +522,8 @@ class Engine:
             s.shark_debt, s.shark_due = 0, 0
             self.add_mental(10)
             self.award('shark_free')
+            if s.debt == 0:
+                self.award('debt_free')
             self.log('You are square with the loan shark. He will not be calling again (+10 mental health).',
                      'win')
         self.save()
@@ -542,7 +551,7 @@ class Engine:
         """Pay the entry fee and start a TOURNAMENT_DAYS long race against your own net worth."""
         s = self.state
         if s.tour_active:
-            self.log(f'A tournament is already running - day {s.day - s.tour_day} of {TOURNAMENT_DAYS}.',
+            self.log(f'A tournament is already running - day {s.day - s.tour_day + 1} of {TOURNAMENT_DAYS}.',
                      'warn')
             return False
         if s.balance < TOURNAMENT_ENTRY:

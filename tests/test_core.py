@@ -207,6 +207,21 @@ class EngineTest(unittest.TestCase):
         e.pass_day()
         self.assertEqual((s.clean_streaks, s.no_gamble_days), (1, 0))
 
+    def test_gambling_breaks_the_clean_streak(self):
+        """A day with games in it can never be scored as a clean day - otherwise the 10-day
+        willpower reward (and the Reformed ending) could be farmed while gambling daily."""
+        s, e = self.s, self.e
+        s.no_gamble_days, s.games_today = 9, 1
+        e.pass_day()
+        self.assertEqual((s.no_gamble_days, s.clean_streaks), (0, 0), 'a day with a game is not clean')
+        s.no_gamble_days, s.games_today = 9, 1
+        self.assertTrue(e.go_work())
+        self.assertEqual((s.no_gamble_days, s.clean_streaks), (0, 0), 'working after a game is not clean either')
+        s.no_gamble_days, s.games_today = 9, 0
+        for _ in range(5):                            # the 5-game limit ends the day mid-swing
+            e.finish_game('coin', 0, None, 10)
+        self.assertEqual((s.no_gamble_days, s.clean_streaks), (0, 0), 'the auto day-end must reset it too')
+
     def test_loans_and_interest(self):
         s, e = self.s, self.e
         e.borrow(200)
@@ -305,7 +320,9 @@ class EngineTest(unittest.TestCase):
         for _ in range(config.TOURNAMENT_DAYS):
             e.advance_day()
         self.assertEqual(s.tour_active, 0, 'the window closes after TOURNAMENT_DAYS days')
-        self.assertEqual(s.balance, 5000 - config.TOURNAMENT_ENTRY - 3000, 'going backwards forfeits the fee')
+        clean = config.CLEAN_REWARD[0]                # the window is 10 game-less days: the reward lands once
+        self.assertEqual(s.balance, 5000 - config.TOURNAMENT_ENTRY - 3000 + clean,
+                         'going backwards forfeits the fee')
         self.assertEqual(e.meta.tournaments[s.difficulty], 0, 'a negative result is not a record')
         self.assertIn('tour_finish', e.meta.achievements)
         self.assertNotIn('tour_record', e.meta.achievements)
@@ -317,9 +334,11 @@ class EngineTest(unittest.TestCase):
         for _ in range(config.TOURNAMENT_DAYS):
             e.advance_day()
         self.assertEqual(s.day, start_day + config.TOURNAMENT_DAYS)
-        bonus = min(config.TOURNAMENT_BONUS_CAP, int(2000 * config.TOURNAMENT_BONUS_RATE))
-        self.assertEqual(s.balance, 5000 - config.TOURNAMENT_ENTRY + 2000 + config.TOURNAMENT_ENTRY + bonus)
-        self.assertEqual(e.meta.tournaments[s.difficulty], 2000, 'the best result is kept per difficulty')
+        # the window is 10 game-less days, so the willpower reward lands inside it and counts as growth
+        growth = 2000 + config.CLEAN_REWARD[0]
+        bonus = min(config.TOURNAMENT_BONUS_CAP, int(growth * config.TOURNAMENT_BONUS_RATE))
+        self.assertEqual(s.balance, 5000 - config.TOURNAMENT_ENTRY + growth + config.TOURNAMENT_ENTRY + bonus)
+        self.assertEqual(e.meta.tournaments[s.difficulty], growth, 'the best result is kept per difficulty')
         self.assertIn('tour_record', e.meta.achievements)
         self.assertEqual(e.meta.tournaments['hard'], 0, 'records stay separate per difficulty')
 
@@ -487,7 +506,7 @@ class EngineTest(unittest.TestCase):
         self.assertIn('mines_clear', e.meta.achievements)
         e.finish_game('hilo', 20, True, 10, tags=('hilo_7',))
         self.assertIn('hilo_7', e.meta.achievements)
-        s.best_win, s.no_gamble_days = 5000, 30
+        s.best_win, s.clean_streaks = 5000, 3        # three completed clean streaks = 30 clean days
         e.check_achievements()
         self.assertIn('big_5k', e.meta.achievements)
         self.assertIn('clean_30', e.meta.achievements)

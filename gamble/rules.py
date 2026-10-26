@@ -86,6 +86,8 @@ def settle_bust(bet):
 
 def settle_blackjack(player, dealer, bet):
     pt, dt = bj_value(player), bj_value(dealer)
+    if pt > 21:                                  # the player busted - the dealer never gets to lose
+        return settle_bust(bet)
     if dt > 21 or pt > dt:
         if pt == 21 and len(player) == 2:
             return _result(int(bet * 1.5), True, 'You win! Blackjack! You win 1.5x your bet.', ('natural',))
@@ -200,6 +202,9 @@ def poker_hand_rank(hand):
     value_counts = {v: values.count(v) for v in set(values)}
     is_flush = len(set(suits)) == 1
     is_straight = all(values[i] - 1 == values[i + 1] for i in range(4))
+    if not is_straight and set(values) == {14, 2, 3, 4, 5}:
+        is_straight = True                       # the wheel A-2-3-4-5 plays as a five-high straight
+        values = [5, 4, 3, 2, 1]
     counts = sorted(value_counts.values(), reverse=True)
     if is_straight and is_flush:
         return (8, values)
@@ -545,7 +550,8 @@ def hilo_rtp(edge=HILO_EDGE):
 # Closed-form where one exists, otherwise the value measured by `python simulate.py rtp`.
 FIXED_RTP = {'coin': 1.0, 'dice': 0.8333, 'roulette': 0.80, 'blackjack': 0.94, 'poker': 0.95,
              'baccarat': 0.955, 'race': 0.80}
-RTP_NOTES = {'coin': 'exactly fair - the only one', 'roulette': '80% on colours, 90% with a number bet',
+RTP_NOTES = {'coin': 'exactly fair - the only one',
+             'roulette': '80% on colours, 90% with a number bet. Green is the sucker bet: 60% / 70%',
              'blackjack': 'with basic strategy', 'poker': 'with the suggested holds',
              'plinko': 'low / medium / high risk', 'crash': 'follows the difficulty'}
 

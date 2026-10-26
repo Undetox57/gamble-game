@@ -12,6 +12,7 @@ from .config import (ACHIEVEMENTS, BANK_INTEREST, CLEAN_STREAKS_FOR_ENDING, CLEA
                      MAX_BET, SHARK_CLEAN, SHARK_COLLECT_MENTAL, SHARK_COLLECT_SHARE, SHARK_DAYS,
                      SHARK_RATE, STREAK_BETS, STREAK_P_MAX, TENURE_RANKS, TOURNAMENT_BONUS_RATE,
                      TOURNAMENT_DAYS, TOURNAMENT_ENTRY, UNLOCK)
+from .style import TEXT_SCALES
 from .widgets import AC, Button, LineChart, back_button, clear_layout, page_title, section
 
 
@@ -33,13 +34,15 @@ def put(table, r, c, text, color=None, align=None):
     table.setItem(r, c, it)
 
 
-ROW_H = 30          # a table row is this tall in the stylesheet
+ROW_H = 30          # a table row at the default text size
 
 
-def fit_height(t):
+def fit_height(t, text='normal'):
     """Ask for room for every row - without it the layout squeezes a long table down to one
-    visible row (it shrinks to its minimum sizeHint) and the rest of the data is unreachable."""
-    t.setMinimumHeight(max(1, t.rowCount()) * ROW_H + 46)      # + header + frame
+    visible row (it shrinks to its minimum sizeHint) and the rest of the data is unreachable.
+    `text` is the display text size, which makes the rows taller than 30 px."""
+    scale = TEXT_SCALES.get(text, TEXT_SCALES['normal'])[1]
+    t.setMinimumHeight(round(max(1, t.rowCount()) * ROW_H * scale) + round(46 * scale))
     return t
 
 
@@ -199,7 +202,7 @@ class JobsPage(QWidget):
 
     def refresh(self):
         s, eng = self.app.state, self.app.engine
-        factor = eng.work_factor()
+        factor = eng.work_factor() * eng.tenure_factor()      # what a shift really pays, as in the sidebar
         clear_layout(self.rows)
         for j in JOBS:
             row = QFrame()
@@ -313,6 +316,7 @@ class AchievementsPage(QWidget):
 
     def refresh(self):
         meta = self.app.meta
+        text = self.app.settings.text
         self.ach_label.setText(f'ACHIEVEMENTS  {len(meta.achievements)}/{len(ACHIEVEMENTS)}')
         for r, (k, title, desc, reward) in enumerate(ACHIEVEMENTS):
             got = k in meta.achievements
@@ -330,6 +334,8 @@ class AchievementsPage(QWidget):
             else:
                 for c, txt in enumerate(('·', '???', kind.capitalize())):
                     put(self.end_table, r, c, txt, '#7a8299')
+        fit_height(self.ach_table, text)
+        fit_height(self.end_table, text)
 
 
 # --------------------------------------------------------------------------- statistics
@@ -381,6 +387,7 @@ class StatsPage(QWidget):
 
     def refresh(self):
         s = self.app.state
+        text = self.app.settings.text                 # row heights follow the display text size
         green, red, gold, muted = '#4cc38a', '#ff6b6b', '#f4c542', '#e8eaf0'
         self.cards['net'].setText(f'{s.net_worth:,}')
         self.cards['day'].setText(str(s.day))
@@ -416,7 +423,9 @@ class StatsPage(QWidget):
         # the last rounds, newest first - what has been happening to the wallet lately
         bets = s.bet_history[-20:]
         self.bets.setRowCount(max(1, len(bets)))
-        fit_height(self.bets)                          # the row count changes here, not at build time
+        fit_height(self.bets, text)                    # the row count changes here, not at build time
+        fit_height(self.table, text)                   # taller rows when the display text is enlarged
+        fit_height(self.board, text)
         if not bets:
             put(self.bets, 0, 0, 'No rounds played yet in this run.', None,
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
@@ -476,8 +485,8 @@ def help_html(state):
     return f"""
 <h2 style='color:{gold}'>How to play</h2>
 <p>You are broke, a little reckless and one lucky streak away from a different life. Your goal is to reach a net
-worth of <b>{state.goal:,} TL</b> (wallet + bank − debt) on <b>{state.diff['name']}</b> difficulty. Or find another way out;
-there are six endings.</p>
+worth of <b>{state.goal:,} TL</b> (wallet + bank − debt − loan-shark debt) on <b>{state.diff['name']}</b>
+difficulty. Or find another way out; there are six endings.</p>
 {h('A day in your life')}
 <ul>
 <li><b>Games:</b> every game you play uses part of your day. After 5 games the day ends.</li>

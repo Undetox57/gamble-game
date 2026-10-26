@@ -50,6 +50,7 @@ GAME_HOTKEYS = dict(zip(LOBBY_ORDER, ['1', '2', '3', '4', '5', '6', '7', '8', '9
 
 # ---------------------------------------------------------------- progression
 CLEAN_TARGET = 10                  # days without gambling for the willpower reward
+CLEAN_REWARD = (150, 25, 30)       # cash, mental health and exp paid for one completed clean streak
 CLEAN_STREAKS_FOR_ENDING = 3       # completed clean streaks for the "Reformed" ending
 REFORMED_MIN_GAMES = 30            # ...and you must have gambled at least this much before
 BANK_INTEREST = 0.01               # per day
@@ -173,7 +174,7 @@ ACHIEVEMENTS = [
     ('lose_5', 'Cold Streak', 'Lose 5 games in a row.', 10),
     ('allin_win', 'Fortune Favors the Bold', 'Win a game betting your whole wallet.', 25),
     ('big_win', 'Big Fish', 'Win 1,000 TL or more in a single game.', 30),
-    ('jackpot', 'Jackpot!', 'Hit a jackpot (slot, lotto, crash, plinko, mines or hi-lo).', 40),
+    ('jackpot', 'Jackpot!', 'Hit a jackpot (slot, lotto, crash, plinko, mines, hi-lo, keno or scratch).', 40),
     ('natural', 'Natural', 'Win with a blackjack from your first two cards.', 15),
     ('lotto_4', 'Lucky Numbers', 'Match 4 or more numbers in Lotto.', 15),
     ('all_games', 'Tried Everything', 'Play every game at least once in one run.', 30),
@@ -200,7 +201,7 @@ ACHIEVEMENTS = [
     ('mines_clear', 'Demolition Expert', 'Clear the entire Mines board without touching a mine.', 40),
     ('hilo_7', 'Card Sharp', 'Win seven Hi-Lo guesses in a row.', 40),
     ('big_5k', 'Whale', 'Win 5,000 TL or more in a single game.', 50),
-    ('clean_30', 'Cold Turkey', 'Stay away from gambling for 30 days in a row.', 40),
+    ('clean_30', 'Cold Turkey', 'Earn the clean-streak reward 3 times (30 clean days).', 40),
     ('streak_bet', 'Sure Thing?', 'Win a streak side bet.', 30),
 ]
 ACH_BY_KEY = {k: (t, d, r) for k, t, d, r in ACHIEVEMENTS}

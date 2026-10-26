@@ -26,6 +26,10 @@ def key_from_name(name):
     return k if k is not None else K.Key_unknown
 
 
+# keys the player cannot rebind: the window owns F1/F11, and 1-9/0 (plus Alt+1..6) start the games
+RESERVED_KEYS = {'F1', 'F11'} | set('0123456789')
+
+
 def key_name(key):
     """A Qt key -> the short text shown on a button ('W', 'F1', 'Esc', 'Space')."""
     for attr in dir(K):
@@ -309,10 +313,19 @@ class KeybindDialog(QDialog):
             self.redraw()
             return
         name = key_name(e.key())
+        if name in RESERVED_KEYS:                        # F1/F11 belong to the window, 1-9/0 start the games
+            a = self.waiting
+            self.waiting = None
+            self.redraw()
+            self.btns[a].setText('(reserved key)')
+            return
         if name:
             taken = [a for a, k in self.picked.items() if k == name and a != self.waiting]
-            for a in taken:                              # two actions may not share one key
-                self.picked[a] = DEFAULT_KEYS[a]
+            used = {name} | {k for a, k in self.picked.items() if a != self.waiting and a not in taken}
+            for a in taken:                              # two actions may not share one key: move the loser
+                free = next((k for k in DEFAULT_KEYS.values() if k not in used), DEFAULT_KEYS[a])
+                self.picked[a] = free
+                used.add(free)
             self.picked[self.waiting] = name
         self.waiting = None
         self.redraw()

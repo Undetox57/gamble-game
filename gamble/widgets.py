@@ -124,6 +124,7 @@ def clear_layout(layout):
     while layout.count():
         item = layout.takeAt(0)
         if item.widget():
+            item.widget().hide()                    # gone now, not at the next event-loop turn
             item.widget().deleteLater()
         elif item.layout():
             clear_layout(item.layout())
@@ -140,7 +141,11 @@ def scaled(size=(68, 98)):
 
 
 def paint_card(lbl, card, size=(68, 98)):
-    """Draw `card` (a (text, suit) pair, or None for face-down) onto an existing card label."""
+    """Draw `card` (a (text, suit) pair, or None for face-down) onto an existing card label.
+
+    The box is re-sized here too, so the "Card size" setting reaches cards that were already
+    dealt (and the Hi-Lo card, which is built once and only ever repainted)."""
+    lbl.setFixedSize(*scaled(size))
     w, _h = scaled(size)
     scale = w / 68
     fs = max(10, round(22 * scale))
