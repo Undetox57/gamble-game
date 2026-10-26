@@ -397,6 +397,9 @@ class StatsPage(QWidget):
         self.session_lbl.setWordWrap(True)
         self.session_lbl.setObjectName('itemDesc')
         lay.addWidget(self.session_lbl, 0)
+        self.share_btn = Button(tr('📸  Share result card'))          # D10
+        self.share_btn.clicked.connect(lambda: self.app.share_result())
+        lay.addWidget(self.share_btn, 0, Qt.AlignmentFlag.AlignLeft)
         lay.addWidget(back_button(app), 0, Qt.AlignmentFlag.AlignLeft)
 
     def refresh(self):
@@ -579,6 +582,7 @@ These lobby keys can be changed in <b>Settings → Change key bindings</b>; the 
 <li>Work and the shop are how you grow. Gambling is how you lose it, or occasionally win big.</li>
 <li>Borrowed money is only worth it for something that pays back more than {state.diff['debt_rate'] * 100:.0f}% a day.</li>
 <li>Your achievements and the endings you have found are kept when you start a new game.</li>
+<li>Statistics can export a <b>result card</b> - a PNG of your run you can share (the same card is offered when you quit).</li>
 </ul>
 """
 
@@ -691,6 +695,7 @@ Enter'a basın.</li>
 <li>Büyümek için iş ve dükkân. Kumarla kaybedersiniz, ara sıra büyük kazanırsınız.</li>
 <li>Ödünç para, günde {state.diff['debt_rate'] * 100:.0f}%'den fazla getiren bir şey için değerlidir.</li>
 <li>Başarılarınız ve bulduğunuz sonuçlar yeni oyun başlatırken korunur.</li>
+<li>İstatistikler sayfasından <b>sonuç kartı</b> oluşturabilirsiniz - koşunuzu anlatan, paylaşabileceğiniz bir PNG (aynı kart çıkarken de sunulur).</li>
 </ul>
 """
 

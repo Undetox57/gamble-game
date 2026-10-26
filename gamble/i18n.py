@@ -51,6 +51,18 @@ TR = {'tr': {
     '⛶  Exit fullscreen': '⛶  Tam ekrandan çık',
     '← Back to lobby': '← Lobiye dön',
     'Welcome to the Gamble Game!': 'Kumarhaneye hoş geldin!',
+    'SESSION': 'OTURUM',
+    'LEVEL': 'SEVİYE',
+
+    # ---- result card (D10)
+    'Result card': 'Sonuç kartı',
+    '📸  Share result card': '📸  Sonuç kartını paylaş',
+    '{g} games': '{g} oyun',
+    '{w} won, {l} lost': '{w} kazanıldı, {l} kaybedildi',
+    'this session': 'bu oturum',
+    'Result card saved to {p} - also copied to the clipboard.':
+        'Sonuç kartı {p} konumuna kaydedildi - ayrıca panoya da kopyalandı.',
+    'Could not share the result card: {e}': 'Sonuç kartı paylaşılamadı: {e}',
 
     # ---- sidebar
     'WALLET': 'CÜZDAN',

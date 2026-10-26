@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (QAbstractButton, QApplication, QFrame, QGraphicsOpa
                              QHBoxLayout, QLabel, QMainWindow, QMessageBox, QProgressBar, QScrollArea, QSpinBox,
                              QStackedWidget, QTextEdit, QVBoxLayout, QWidget)
 
-from . import config, sound
+from . import config, share, sound
 from .config import (CATEGORIES, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET, GAME_HOTKEYS, GAME_NAMES, GAME_SUBTITLES,
                      ITEM_BY_KEY, LEVEL_EXP, LOBBY_ORDER, TOURNAMENT_BONUS_RATE, TOURNAMENT_DAYS,
                      TOURNAMENT_ENTRY, UNLOCK)
@@ -548,6 +548,15 @@ class MainWindow(QMainWindow):
                 + txf('Net worth this session: {n} TL', n=f'{net:+,}') + '\n'
                 + txf('Now: {n} TL', n=f'{s.net_worth:,}'))
 
+    def share_result(self):
+        """D10: render the result card, save it next to the save files and copy it."""
+        try:
+            path = share.share(self)
+        except Exception as exc:                          # never let sharing break the game
+            return self.log(txf('Could not share the result card: {e}', e=exc), 'loss')
+        self.log(txf('Result card saved to {p} - also copied to the clipboard.', p=path), 'win')
+        return path
+
     def flash_delta(self, delta):
         """A floating +/- amount next to the wallet."""
         if not self.settings.effects:
@@ -894,6 +903,9 @@ class MainWindow(QMainWindow):
             box.setWindowTitle(tr('Session summary'))
             box.setIcon(QMessageBox.Icon.NoIcon)
             box.setText(f'{tr("This session")}\n\n{self.session_text()}')
-            box.setStandardButtons(QMessageBox.StandardButton.Ok)
+            share_btn = box.addButton(tr('📸  Share result card'), QMessageBox.ButtonRole.ActionRole)
+            box.addButton(QMessageBox.StandardButton.Ok)
             box.exec()
+            if box.clickedButton() is share_btn:          # D10: leave with a card in hand
+                self.share_result()
         e.accept()

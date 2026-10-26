@@ -12,6 +12,7 @@ dist/
 savegame.txt
 gamble_meta.txt
 gamble_settings.txt
+share/
 
 # --- installer output ---
 installer/Output/
