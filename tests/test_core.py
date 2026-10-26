@@ -17,11 +17,49 @@ import simulate                                        # noqa: E402
 class RulesTest(unittest.TestCase):
     def test_exact_returns_are_house_favoured(self):
         exact = {'slot': rules.slot_rtp(), 'wheel': rules.wheel_rtp(), 'scratch': rules.scratch_rtp(),
-                 'lotto': rules.lotto_rtp(), 'crash': rules.crash_rtp(), 'mines': rules.mines_rtp(),
-                 'hi-lo': rules.hilo_rtp(),
+                 'lotto': rules.lotto_rtp(), 'keno': rules.keno_rtp(), 'crash': rules.crash_rtp(),
+                 'mines': rules.mines_rtp(), 'hi-lo': rules.hilo_rtp(),
                  **{f'plinko {r}': rules.plinko_rtp(r) for r in rules.PLINKO_TABLES}}
         for name, rtp in exact.items():
             self.assertTrue(0.85 < rtp < 0.95, f'{name}: {rtp:.4f}')
+
+    def test_keno_payout_table_is_exactly_priced(self):
+        """Keno is a hypergeometric draw, so its RTP can be computed - and must match a simulation."""
+        probs = [rules.keno_hit_prob(h) for h in range(rules.KENO_PICK + 1)]
+        self.assertAlmostEqual(sum(probs), 1.0, places=9, msg='the hit probabilities must cover every draw')
+        self.assertAlmostEqual(rules.keno_rtp(), 0.9005, places=4, msg='the table is priced at ~90%')
+        self.assertEqual(rules.settle_keno(3, 100)[0], 0, '3 hits is a push, not a win')
+        self.assertEqual(rules.settle_keno(4, 100)[0], 50, '4 hits pays 1.5x total')
+        self.assertEqual(rules.settle_keno(5, 100)[0], 300, '5 hits pays 4x total')
+        self.assertEqual(rules.settle_keno(0, 100)[0], -100)
+        self.assertEqual(rules.settle_keno(10, 100)[3], ('jackpot',))
+        for hits in range(rules.KENO_PICK + 1):
+            delta, win, text, _tags = rules.settle_keno(hits, 100)
+            self.assertIn(win, (True, False, None), hits)
+            self.assertEqual(win is True, delta > 0, hits)
+            self.assertTrue(text)
+        rng = random.Random(7)
+        rets = [(100 + simulate.r_keno(rng, 100)[0]) / 100 for _ in range(40000)]
+        mean = sum(rets) / len(rets)
+        err = (sum((r - mean) ** 2 for r in rets) / len(rets)) ** 0.5 / math.sqrt(len(rets))
+        self.assertLess(abs(mean - rules.keno_rtp()), 4 * err + 0.01, 'measured Keno RTP drifts from its price')
+
+    def test_every_game_key_is_wired_up(self):
+        """A new game must be listed everywhere the code iterates over the games."""
+        from gamble import style
+        self.assertEqual(sorted(config.LOBBY_ORDER), sorted(config.GAME_KEYS), 'CATEGORIES lost a game')
+        self.assertEqual(len(config.GAME_HOTKEYS), len(config.GAME_KEYS), 'not every game has a shortcut')
+        self.assertEqual(len(set(config.GAME_HOTKEYS.values())), len(config.GAME_KEYS), 'shortcut collision')
+        for key in config.GAME_KEYS:
+            self.assertIn(key, config.GAME_NAMES, key)
+            self.assertIn(key, config.GAME_SUBTITLES, key)
+            self.assertIn(key, config.UNLOCK, key)
+            self.assertIn(key, style.GAME_ICONS, key)
+            self.assertGreater(rules.game_rtp(key), 0.5, f'{key} pays nothing')
+        # every game is either part of a streak bet or a cash-out game (the three edge games)
+        self.assertEqual(set(config.GAME_KEYS) - set(config.STREAK_GAMES), set(config.EDGE_GAMES))
+        self.assertIn('keno', config.LOBBY_ORDER)
+        self.assertIn('keno', config.STREAK_GAMES)
 
     def test_simulated_returns_match_and_nothing_prints_money(self):
         rng = random.Random(5)
@@ -362,6 +400,22 @@ class EngineTest(unittest.TestCase):
         t = GameState()
         self.assertIsNone(t.load())
         self.assertEqual((t.balance, t.difficulty, t.items, t.stats['coin']['won']), (250, 'normal', {}, 3))
+
+    def test_a_save_from_before_keno_still_loads(self):
+        """A save written before the 16th game existed must load with empty Keno counters."""
+        with open(config.SAVE_FILE, 'w') as f:              # the old console format
+            f.write('250\n10.5\n12\n3\n2\n80\n0\n40\n0\n4\ncoin:5:3:2\n')
+        t = GameState()
+        self.assertIsNone(t.load())
+        self.assertEqual(t.stats['keno'], {'played': 0, 'won': 0, 'lost': 0})
+        self.assertEqual(t.profit['keno'], 0)
+        t.stats['keno'] = {'played': 1, 'won': 1, 'lost': 0}
+        t.profit['keno'] = 40
+        self.assertIsNone(t.save())
+        with open(config.SAVE_FILE, encoding='utf-8') as f:
+            text = f.read()
+        self.assertIn('keno:1:1:0', text)
+        self.assertIn('x:p_keno:40', text)
 
     def test_reset_never_deletes_other_files(self):
         meta = MetaState()

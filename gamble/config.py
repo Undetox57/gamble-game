@@ -22,11 +22,11 @@ SETTINGS_FILE = os.path.join(BASE_DIR, 'gamble_settings.txt')
 
 # ---------------------------------------------------------------- games
 GAME_KEYS = ['coin', 'dice', 'roulette', 'blackjack', 'slot', 'tombala', 'poker', 'baccarat', 'race',
-             'wheel', 'scratch', 'crash', 'plinko', 'hilo', 'mines']
+             'wheel', 'scratch', 'crash', 'plinko', 'hilo', 'mines', 'keno']
 GAME_NAMES = {'coin': 'Coin Flip', 'dice': 'Dice Roll', 'roulette': 'Roulette', 'blackjack': 'Blackjack',
               'slot': 'Slot Machine', 'tombala': 'Lotto', 'poker': 'Poker', 'baccarat': 'Baccarat',
               'race': 'Race Bet', 'wheel': 'Wheel of Fortune', 'scratch': 'Scratch Card',
-              'crash': 'Crash', 'plinko': 'Plinko', 'hilo': 'Hi-Lo', 'mines': 'Mines'}
+              'crash': 'Crash', 'plinko': 'Plinko', 'hilo': 'Hi-Lo', 'mines': 'Mines', 'keno': 'Keno'}
 GAME_SUBTITLES = {
     'coin': '50/50 • pays 2×', 'dice': 'Guess 1-6 • pays 5×', 'slot': 'Match 3 → 5× • 2 → 1.5×',
     'roulette': 'Color 2× • number bonus', 'blackjack': 'Beat the dealer • 2.5×', 'poker': '5-card draw • pays 1.9×',
@@ -34,18 +34,19 @@ GAME_SUBTITLES = {
     'race': 'Pick the winner • 4×', 'baccarat': 'Player vs Banker • 1.9×',
     'plinko': 'Drop a ball • up to 20×', 'crash': 'Cash out in time • no limit',
     'hilo': 'High or low • × grows each win', 'mines': 'Safe cells • cash out anytime',
+    'keno': 'Pick 10/40 • 3 hits pay, 10 = 20000×',
 }
 UNLOCK = {'coin': 1, 'dice': 1, 'slot': 1, 'hilo': 1, 'roulette': 2, 'race': 2, 'plinko': 2, 'tombala': 3,
-          'wheel': 3, 'crash': 3, 'blackjack': 4, 'scratch': 4, 'mines': 4, 'baccarat': 5,
+          'wheel': 3, 'crash': 3, 'blackjack': 4, 'scratch': 4, 'mines': 4, 'keno': 4, 'baccarat': 5,
           'poker': 6}                                # level needed per game
 CATEGORIES = [('BEGINNER GAMES', ['coin', 'dice', 'slot', 'hilo']),
               ('ADVANCED GAMES', ['roulette', 'blackjack', 'poker']),
-              ('CHANCE GAMES', ['tombala', 'wheel', 'scratch']),
+              ('CHANCE GAMES', ['tombala', 'wheel', 'scratch', 'keno']),
               ('BETTING GAMES', ['race', 'baccarat']),
               ('ARCADE GAMES', ['plinko', 'crash', 'mines'])]
 LOBBY_ORDER = [k for _, keys in CATEGORIES for k in keys]      # keyboard shortcuts follow this order
 GAME_HOTKEYS = dict(zip(LOBBY_ORDER, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
-                                     'Alt+1', 'Alt+2', 'Alt+3', 'Alt+4', 'Alt+5']))
+                                     'Alt+1', 'Alt+2', 'Alt+3', 'Alt+4', 'Alt+5', 'Alt+6']))
 
 # ---------------------------------------------------------------- progression
 CLEAN_TARGET = 10                  # days without gambling for the willpower reward
@@ -93,7 +94,7 @@ DIFFICULTIES = {
 STREAK_P_MAX = 0.52
 STREAK_BETS = {3: 6.5, 5: 24, 7: 89, 10: 630}          # target -> total multiplier (stake included)
 STREAK_GAMES = ['coin', 'dice', 'roulette', 'blackjack', 'slot', 'tombala', 'poker', 'baccarat', 'race',
-                'wheel', 'scratch', 'plinko']           # cash-out games cannot be part of a streak bet
+                'wheel', 'scratch', 'plinko', 'keno']   # cash-out games cannot be part of a streak bet
 
 # ---------------------------------------------------------------- career tenure (C3)
 # (days worked in one run, title) - layered on top of the 7-day work streak

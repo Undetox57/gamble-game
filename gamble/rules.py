@@ -138,6 +138,50 @@ def settle_lotto(matches, bet):
     return _result(-bet, False, f'{head} No big win. You lost.')
 
 
+# ---------------------------------------------------------------- keno
+# Pick KENO_PICK numbers out of KENO_POOL; the draw takes KENO_DRAW of them. The house edge comes
+# from the shape of the hypergeometric distribution, so the payout table below can be priced exactly
+# (see keno_rtp) instead of being guessed - it returns 90.05% of every stake.
+KENO_POOL = 40
+KENO_PICK = 10
+KENO_DRAW = 10
+KENO_PAYOUT = {3: 1, 4: 1.5, 5: 4, 6: 20, 7: 120, 8: 700, 9: 3500, 10: 20000}
+
+
+def keno_draw(rng):
+    return sorted(rng.sample(range(1, KENO_POOL + 1), KENO_DRAW))
+
+
+def keno_hits(picked, drawn):
+    return len(set(picked) & set(drawn))
+
+
+def keno_hit_prob(hits):
+    """Chance of matching exactly `hits` numbers with KENO_PICK picks."""
+    return (math.comb(KENO_PICK, hits) * math.comb(KENO_POOL - KENO_PICK, KENO_DRAW - hits)
+            / math.comb(KENO_POOL, KENO_DRAW))
+
+
+def keno_rtp():
+    return sum(keno_hit_prob(h) * m for h, m in KENO_PAYOUT.items())
+
+
+def settle_keno(hits, bet):
+    head = f'{hits} of your {KENO_PICK} numbers hit.'
+    mult = KENO_PAYOUT.get(hits, 0)
+    if mult >= 20:
+        return _result(int(bet * (mult - 1)), True, f'{head} JACKPOT! You won {mult:g}x your bet!',
+                       ('jackpot',))
+    if mult > 1:
+        delta = int(bet * (mult - 1))
+        if delta >= 1:                          # tiny stakes can round a win down to nothing
+            return _result(delta, True, f'{head} You won {mult:g}x your bet!')
+        return _result(0, None, f'{head} Your bet is returned.')
+    if mult == 1:
+        return _result(0, None, f'{head} Your bet is returned.')
+    return _result(-bet, False, f'{head} Not enough. You lost.')
+
+
 # ---------------------------------------------------------------- poker (5 card draw vs computer)
 POKER_NAMES = ['High Card', 'One Pair', 'Two Pair', 'Three of a Kind', 'Straight', 'Flush',
                'Full House', 'Four of a Kind', 'Straight Flush']
@@ -522,4 +566,6 @@ def game_rtp(key, edge=HILO_EDGE, risk='medium'):
         return scratch_rtp()
     if key == 'tombala':
         return lotto_rtp()
+    if key == 'keno':
+        return keno_rtp()
     return FIXED_RTP.get(key, 0.0)

@@ -131,7 +131,7 @@ THEMES = {
 # Lobby icons. Purely cosmetic; kept here (Qt-free) so window.py and the game pages can share them.
 GAME_ICONS = {'coin': '💰', 'dice': '🎲', 'slot': '🎰', 'roulette': '🎯', 'blackjack': '🃏', 'poker': '🎴',
               'tombala': '🎱', 'wheel': '🎡', 'scratch': '🎟', 'race': '🏇', 'baccarat': '♠', 'plinko': '🔵',
-              'crash': '📈', 'hilo': '📇', 'mines': '💣'}
+              'crash': '📈', 'hilo': '📇', 'mines': '💣', 'keno': '🔢'}
 CATEGORY_ACCENTS = {'BEGINNER GAMES': '#4cc38a', 'ADVANCED GAMES': '#6c8cff', 'CHANCE GAMES': '#b06ee0',
                     'BETTING GAMES': '#ff8a5c', 'ARCADE GAMES': '#3fc8e0'}
 TEXT_SCALES = {'small': ('Small', 0.9), 'normal': ('Normal', 1.0), 'large': ('Large', 1.15), 'huge': ('Huge', 1.25)}

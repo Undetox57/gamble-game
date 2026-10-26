@@ -135,6 +135,12 @@ def r_hilo(rng, bet, steps=3, edge=rules.HILO_EDGE):
     return rules.settle_hilo(rules.hilo_multiplier(probs, edge=edge), bet)
 
 
+def r_keno(rng, bet):
+    """A bot that quick-picks KENO_PICK numbers and takes whatever the draw gives."""
+    picked = rng.sample(range(1, rules.KENO_POOL + 1), rules.KENO_PICK)
+    return rules.settle_keno(rules.keno_hits(picked, rules.keno_draw(rng)), bet)
+
+
 # name -> (game key, round function)
 ROUNDS = {
     'coin': ('coin', r_coin), 'dice': ('dice', r_dice), 'roulette (black)': ('roulette', r_roulette),
@@ -146,13 +152,13 @@ ROUNDS = {
     'plinko low': ('plinko', r_plinko('low')), 'plinko medium': ('plinko', r_plinko('medium')),
     'plinko high': ('plinko', r_plinko('high')),
     'mines (3 picks)': ('mines', r_mines(5, 3)), 'mines (6 picks)': ('mines', r_mines(5, 6)),
-    'hi-lo (3 guesses)': ('hilo', r_hilo),
+    'hi-lo (3 guesses)': ('hilo', r_hilo), 'keno (10 picks)': ('keno', r_keno),
 }
 EXACT = {'lotto': rules.lotto_rtp(), 'slot': rules.slot_rtp(), 'wheel': rules.wheel_rtp(), 'scratch': rules.scratch_rtp(),
          'plinko low': rules.plinko_rtp('low'), 'plinko medium': rules.plinko_rtp('medium'),
          'plinko high': rules.plinko_rtp('high'), 'crash @1.5x': rules.crash_rtp(), 'crash @2x': rules.crash_rtp(),
          'crash @5x': rules.crash_rtp(), 'mines (3 picks)': rules.mines_rtp(), 'mines (6 picks)': rules.mines_rtp(),
-         'hi-lo (3 guesses)': rules.hilo_rtp()}
+         'hi-lo (3 guesses)': rules.hilo_rtp(), 'keno (10 picks)': rules.keno_rtp()}
 
 
 def build_rounds(edge=None):
@@ -213,7 +219,8 @@ PROFILES = {
     'cautious': dict(work=0.7, games=3, frac=0.02, borrow=False, shop=True,
                      pool=['coin', 'dice', 'roulette (black)', 'plinko low', 'crash @1.5x']),
     'gambler': dict(work=0.3, games=5, frac=0.25, borrow=True, shop=False,
-                    pool=['slot', 'lotto', 'wheel', 'scratch', 'crash @2x', 'plinko high', 'coin']),
+                    pool=['slot', 'lotto', 'keno (10 picks)', 'wheel', 'scratch', 'crash @2x',
+                          'plinko high', 'coin']),
     'highroller': dict(work=0.2, games=3, frac=0.5, borrow=True, shop=False,
                        pool=['crash @2x', 'blackjack (hit < 17)', 'plinko medium', 'roulette (black)']),
 }
