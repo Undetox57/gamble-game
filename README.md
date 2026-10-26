@@ -25,8 +25,29 @@ next to `gamble_gui.py`. Old saves load fine; the console version can still read
       dialogs.py         events, endings, settings, new game
       window.py          main window, navigation, keyboard shortcuts
     tests/test_core.py   python -m unittest discover -s tests
+    installer/           Inno Setup script -> GambleGame-1.0.0-Setup.exe
+    docs/                OKUMA-BENIM.txt (for players), YAYINLAMA.md (distribution + antivirus)
+    version_info.txt     Windows file metadata baked into the exe
 
 Because the rules and the engine have no Qt in them, the simulator and the GUI always play by the same rules.
+
+## Building a Windows executable
+    python -m PyInstaller --noconfirm --clean gamble_gui_onedir.spec   # folder build (recommended)
+    python -m PyInstaller --noconfirm --clean gamble_gui.spec          # single-file build
+    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\GambleGame.iss
+
+Saves always live NEXT TO THE EXE (see `config._base_dir`), which is why the installer uses
+{localappdata}\Programs and not Program Files - the game could not write there.
+Antivirus false positives, hashes and submission templates: `docs\YAYINLAMA.md`.
+
+## Tests
+    python -m unittest discover -s tests     # unit tests (rules, economy, save compatibility)
+    python simulate.py rtp                   # measured return-to-player, must match the exact values
+    python simulate.py run                   # whole runs with bots on every difficulty
+
+## License
+MIT - see LICENSE.
+
 
 ## Balance simulator
     python simulate.py rtp                 return-to-player of every game (100% = fair, lower = the house wins)

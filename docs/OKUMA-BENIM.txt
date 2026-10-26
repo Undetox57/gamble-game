@@ -1,0 +1,47 @@
+GAMBLE GAME - kısa bilgi
+========================
+
+Ne bu?
+    Bir kumarhane-yaşam simülasyonu: çalış, borçlan, kumar oyna, hedefe ulaş.
+    15+ oyun, ~%92 ortalama ödeme (RTP), 6 farklı final. Ücretsiz, MIT lisanslı, açık kaynak.
+
+
+NASIL AÇILIR?
+-------------
+Seçenek 1 - kurulum (önerilen):
+    GambleGame-1.0.0-Setup.exe dosyasını çalıştır.
+    Kurulum yalnızca kendi klasörüne yapar, yönetici (administrator) yetkisi İSTEMEZ.
+    Başlat menüsüne kısayol koyar; "Kaldır" dersen oyunu siler ama kayıtların kalır.
+
+Seçenek 2 - kurulumsuz:
+    GambleGame klasörünün içindeki GambleGame.exe dosyasına çift tıkla.
+    KLASÖRÜ BOZMA: içindeki _internal klasörü oyunun kendisidir, exe ona ihtiyaç duyar.
+    Zip'i açarken "Tümünü aç" / "Extract All" kullan, masaüstüne çıkardığın tek exe'yi değil.
+
+
+"Bilinmeyen yayıncı" / SmartScreen uyarısı çıkarsa
+---------------------------------------------------
+Uygulama imzalanmadığı için Windows ilk açılışta bunu herkese sorar.
+    "Daha fazla bilgi"  ->  "Yine de çalıştır"  de.
+Antivirüs bunu virüs sanıp silerse bu YANLIŞ ALARMDIR: dosyanın SHA-256 hash'ini
+virustotal.com'a yapıştır, 70+ motorun temiz gördüğünü kendin doğrulayabilirsin.
+Oyunun kaynağı açık: gamble/ klasöründeki her dosya okunabilir.
+
+
+Kayıtlar nerede durur?
+----------------------
+GambleGame.exe'nin yanında, üç dosya:
+    savegame.txt        ilerlemen (bakiye, gün, seviye)
+    gamble_meta.txt     başarımlar, rekorlar, bulduğun finaler
+    gamble_settings.txt tema, ses, tuş ayarları
+Bunları silersen oyun sıfırdan başlar. Bir bilgisayardan diğerine taşımak için
+bu üç dosyayı kopyalaman yeterli.
+
+
+Bilgisayarda ne kurulu olması gerekmiyor?
+-----------------------------------------
+Hiçbir şey. Python, PyQt6, Visual Studio vb. GEREKMİYOR - hepsi klasörün içinde.
+Gereksinim: 64-bit Windows 10/11. Kurulum klasörü: %LOCALAPPDATA%\Programs\Gamble Game
+
+
+Lisans: MIT (LICENSE dosyası).
