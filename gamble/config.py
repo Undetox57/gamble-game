@@ -55,6 +55,17 @@ REFORMED_MIN_GAMES = 30            # ...and you must have gambled at least this 
 BANK_INTEREST = 0.01               # per day
 BANK_INTEREST_CAP_PER_LEVEL = 25   # max interest paid per day = 25 TL x level
 EVENT_CHANCE = 0.30                # chance of a random event when a day passes
+
+# ---------------------------------------------------------------- loan shark (Tefeci / black money)
+# A second, much nastier credit line: no credit check, but 6% a day, a hard deadline and a visit
+# from the collector. The upside is that his channels clean 15% extra out of your wins while you owe.
+SHARK_LIMIT_PER_LEVEL = 2000       # his ceiling at level 1, +2000 per level
+SHARK_RATE = 0.06                  # interest per day (compounding)
+SHARK_DAYS = 4                      # days until the collector knocks on the door
+SHARK_COLLECT_SHARE = 0.25          # the collector seizes this share of your wallet (up to the debt)
+SHARK_COLLECT_MENTAL = -15          # mental health cost of that visit
+SHARK_CLEAN = 0.15                  # bonus added to wins while you owe him (money laundering)
+SHARK_SPIRAL_MULT = 3               # shark_debt >= 3x his ceiling = the "Debt Spiral" ending
 LEVEL_EXP = [0, 20, 60, 120, 200, 320, 480, 700, 1000, 1400]          # exp needed for level 1..10
 MAX_BET = [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 10 ** 9]  # max bet per level
 
@@ -161,6 +172,7 @@ ACHIEVEMENTS = [
     ('rich_10k', 'Wealthy', 'Reach 10,000 TL net worth.', 40),
     ('saver', 'Saver', 'Have 500 TL in the bank.', 10),
     ('borrower', 'In The Red', 'Take out your first loan.', 5),
+    ('shark_free', 'Off His List', 'Pay the loan shark back in full.', 25),
     ('debt_free', 'Debt Free', 'Fully repay your debt.', 20),
     ('workaholic', 'Workaholic', 'Complete a 7-day work streak.', 20),
     ('promoted', 'Climbing The Ladder', 'Get a job as Manager.', 50),

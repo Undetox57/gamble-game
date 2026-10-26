@@ -8,8 +8,10 @@ import random
 
 from .config import (ACH_BY_KEY, BANK_INTEREST, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET, DIFFICULTIES,
                      ENDINGS, EVENT_CHANCE, GAME_NAMES, ITEM_BY_KEY, JOB_BY_KEY, JOBS, LEVEL_EXP, MAX_BET,
-                     PERMANENT_ITEMS, REFORMED_MIN_GAMES, STREAK_BETS, STREAK_GAMES, STREAK_P_MAX,
-                     TENURE_RANKS, THERAPY_COOLDOWN_DAYS, UNLOCK, tenure_rank)
+                     PERMANENT_ITEMS, REFORMED_MIN_GAMES, SHARK_CLEAN, SHARK_COLLECT_MENTAL,
+                     SHARK_COLLECT_SHARE, SHARK_DAYS, SHARK_RATE, SHARK_SPIRAL_MULT,
+                     STREAK_BETS, STREAK_GAMES, STREAK_P_MAX, TENURE_RANKS, THERAPY_COOLDOWN_DAYS, UNLOCK,
+                     tenure_rank)
 from .events import build_events
 from .state import BET_HISTORY_LIMIT, HISTORY_LIMIT, GameState, MetaState
 
@@ -165,6 +167,12 @@ class Engine:
             if s.debt > s.credit_limit:
                 self.add_mental(-3)
                 self.log('You are over your credit limit. The calls keep coming (-3 mental health).', 'loss')
+        if s.shark_debt > 0:                       # the loan shark: his money compounds fastest of all
+            interest = max(1, round(s.shark_debt * SHARK_RATE))
+            s.shark_debt += interest
+            self.log(f'Loan shark interest: +{interest:,} TL. You owe him {s.shark_debt:,} TL.', 'loss')
+            if s.day >= s.shark_due:
+                self.shark_collect()
         s.history.append((s.day, s.net_worth))
         if len(s.history) > HISTORY_LIMIT:
             s.history = s.history[::2][:-1] + [s.history[-1]]      # thin out old points, keep the newest
@@ -186,13 +194,18 @@ class Engine:
 
     # ---- playing games
     def apply_item_modifiers(self, delta, win, bet):
-        """Lucky Charm / Loss Insurance. Returns (new delta, insured, notes)."""
+        """Lucky Charm / Loss Insurance / the shark's laundering. Returns (new delta, insured, notes)."""
         s, notes, insured = self.state, [], False
         if win is True and delta > 0 and s.items.get('charm', 0) > 0:
             bonus = max(1, int(delta * 0.25))
             delta += bonus
             s.items['charm'] -= 1
             notes.append(f'Lucky Charm: +{bonus} TL')
+        if win is True and delta > 0 and s.shark_debt > 0:
+            bonus = int(delta * SHARK_CLEAN)       # his channels clean a cut of everything you win
+            if bonus > 0:
+                delta += bonus
+                notes.append(f'The shark cleaned your winnings: +{bonus} TL')
         elif win is False and s.items.get('insurance', 0) > 0:
             refund = min(bet // 2, -delta)
             delta += refund
@@ -470,6 +483,57 @@ class Engine:
         self.save()
         return True
 
+    # ---- loan shark (Tefeci)
+    def shark_borrow(self, amt):
+        """Take black money from the shark: 6% a day, a hard deadline, a big ceiling."""
+        s = self.state
+        if amt <= 0 or s.shark_debt + amt > s.shark_limit:
+            self.log(f'The shark will not go that high - his ceiling is {s.shark_limit:,} TL at your level.',
+                     'warn')
+            return False
+        s.balance += amt
+        s.shark_debt += amt
+        s.shark_due = s.day + SHARK_DAYS             # every advance buys exactly SHARK_DAYS of time
+        self.log(f'Took {amt:,} TL from the shark. You owe {s.shark_debt:,} TL, '
+                 f'he collects on day {s.shark_due} ({SHARK_RATE * 100:.0f}% a day).', 'warn')
+        self.save()
+        return True
+
+    def shark_pay(self, amt):
+        """Repay the shark. Paying him off in full awards 'shark_free' and calms you down."""
+        s = self.state
+        if amt <= 0 or amt > s.shark_debt or amt > s.balance:
+            self.log('Invalid amount!', 'warn')
+            return False
+        s.balance -= amt
+        s.shark_debt -= amt
+        self.log(f'Paid the shark {amt:,} TL. He is holding {s.shark_debt:,} TL of yours.', 'win')
+        if s.shark_debt <= 0:
+            s.shark_debt, s.shark_due = 0, 0
+            self.add_mental(10)
+            self.award('shark_free')
+            self.log('You are square with the loan shark. He will not be calling again (+10 mental health).',
+                     'win')
+        self.save()
+        return True
+
+    def shark_collect(self):
+        """The deadline passed: he takes a quarter of your wallet and your nerves go with it."""
+        s = self.state
+        seized = min(int(s.balance * SHARK_COLLECT_SHARE), s.shark_debt)
+        if seized > 0:
+            s.balance -= seized
+            s.shark_debt -= seized
+        self.add_mental(SHARK_COLLECT_MENTAL)
+        self.log(f'The collector took {seized:,} TL out of your wallet and left you shaking '
+                 f'({SHARK_COLLECT_MENTAL} mental health).', 'loss')
+        if s.shark_debt <= 0:
+            s.shark_debt, s.shark_due = 0, 0
+            self.log('He wiped out what you owed and walked away. You are free of him.', 'warn')
+        else:
+            s.shark_due = s.day + SHARK_DAYS
+            self.log(f'You still owe {s.shark_debt:,} TL. He gives you {SHARK_DAYS} more days.', 'warn')
+
     # ---- shop
     def price(self, key):
         s, item = self.state, ITEM_BY_KEY[key]
@@ -536,7 +600,7 @@ class Engine:
         key = None
         if s.mental <= 0:
             key = 'breakdown'
-        elif s.debt > 0 and s.debt >= 3 * s.credit_limit:
+        elif (s.debt > 0 and s.debt >= 3 * s.credit_limit) or s.shark_debt >= SHARK_SPIRAL_MULT * s.shark_limit:
             key = 'debt_spiral'
         elif s.balance <= 0 and s.bank <= 0 and s.credit_available < 1:
             key = 'bankrupt'

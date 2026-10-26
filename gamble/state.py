@@ -18,7 +18,8 @@ class GameState:
     EXTRA_INT = ['debt', 'won_goal', 'reformed', 'clean_streaks', 'loss_streak', 'win_streak', 'events_seen',
                  'streaks_done', 'best_win', 'worst_loss', 'last_therapy_day',
                  'sb_stake', 'sb_target', 'sb_count',   # the streak side bet (0 = none)
-                 'worked_days']                          # career tenure (C3): days worked in this run
+                 'worked_days',                         # career tenure (C3): days worked in this run
+                 'shark_debt', 'shark_due']             # loan shark: owed TL and the day he comes to collect
 
     def __init__(self):
         self.set_defaults()
@@ -84,7 +85,12 @@ class GameState:
 
     @property
     def net_worth(self):
-        return int(self.balance + self.bank - self.debt)
+        return int(self.balance + self.bank - self.debt - self.shark_debt)
+
+    @property
+    def shark_limit(self):
+        """The most the loan shark will ever advance you, at your current level."""
+        return config.SHARK_LIMIT_PER_LEVEL * self.level
 
     @property
     def job_info(self):

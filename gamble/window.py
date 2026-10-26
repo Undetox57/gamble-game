@@ -541,8 +541,13 @@ class MainWindow(QMainWindow):
                              f'{self.engine.tenure_title()} ({s.worked_days} days worked)')
         self.set_balance(s.balance)                        # D2: rolls to the new number
         self.lbl_bank.setText(f'Bank: {s.bank:,.2f} TL')
-        self.lbl_debt.setText(f'Debt: {s.debt:,} TL')
-        self.lbl_debt.setVisible(s.debt > 0)
+        parts = []
+        if s.debt > 0:
+            parts.append(f'Debt: {s.debt:,} TL')
+        if s.shark_debt > 0:                    # the loan shark's share, in red next to the bank debt
+            parts.append(f'Shark: {s.shark_debt:,} TL (collects day {s.shark_due})')
+        self.lbl_debt.setText('   •   '.join(parts))
+        self.lbl_debt.setVisible(bool(parts))
         self.lbl_level.setText(f'LEVEL {lv}')
         cur, need, is_max = eng.level_progress()
         self.bar_exp.setRange(0, need)

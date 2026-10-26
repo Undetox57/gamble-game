@@ -9,7 +9,8 @@ from PyQt6.QtWidgets import (QAbstractItemView, QFrame, QHBoxLayout, QHeaderView
 from . import rules
 from .config import (ACHIEVEMENTS, BANK_INTEREST, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET, DIFFICULTIES, ENDINGS,
                      GAME_HOTKEYS, GAME_KEYS, GAME_NAMES, GAME_SUBTITLES, ITEMS, JOBS, LEVEL_EXP, LOBBY_ORDER,
-                     MAX_BET, STREAK_BETS, STREAK_P_MAX, TENURE_RANKS, UNLOCK)
+                     MAX_BET, SHARK_CLEAN, SHARK_COLLECT_MENTAL, SHARK_COLLECT_SHARE, SHARK_DAYS,
+                     SHARK_RATE, STREAK_BETS, STREAK_P_MAX, TENURE_RANKS, UNLOCK)
 from .widgets import AC, Button, LineChart, back_button, clear_layout, page_title, section
 
 
@@ -90,6 +91,26 @@ class BankPage(QWidget):
         ll.addLayout(amount_row(self.borrow_spin, self.borrow_btn))
         ll.addLayout(amount_row(self.repay_spin, self.repay_btn, self.repay_all))
         lay.addWidget(loan)
+
+        lay.addWidget(section('LOAN SHARK  (black money)'))
+        shark = QFrame()
+        shark.setObjectName('panel')
+        sl = QVBoxLayout(shark)
+        sl.setSpacing(10)
+        self.shark_info = QLabel()
+        self.shark_info.setObjectName('prompt')
+        self.shark_info.setWordWrap(True)
+        sl.addWidget(self.shark_info)
+        self.shark_spin, self.shark_btn = QSpinBox(), Button('Take from the shark')
+        self.shark_btn.clicked.connect(lambda: self.act(self.app.engine.shark_borrow, self.shark_spin.value()))
+        self.shark_pay_spin, self.shark_pay_btn = QSpinBox(), Button('Pay the shark')
+        self.shark_pay_btn.setObjectName('primary')
+        self.shark_pay_btn.clicked.connect(lambda: self.act(self.app.engine.shark_pay, self.shark_pay_spin.value()))
+        self.shark_pay_all = Button('Pay him everything')
+        self.shark_pay_all.clicked.connect(self.do_pay_shark_all)
+        sl.addLayout(amount_row(self.shark_spin, self.shark_btn))
+        sl.addLayout(amount_row(self.shark_pay_spin, self.shark_pay_btn, self.shark_pay_all))
+        lay.addWidget(shark)
         lay.addStretch()
         lay.addWidget(back_button(app), 0, Qt.AlignmentFlag.AlignLeft)
 
@@ -100,6 +121,10 @@ class BankPage(QWidget):
     def do_repay_all(self):
         s = self.app.state
         self.act(self.app.engine.repay, min(s.balance, s.debt))
+
+    def do_pay_shark_all(self):
+        s = self.app.state
+        self.act(self.app.engine.shark_pay, min(s.balance, s.shark_debt))
 
     def refresh(self):
         s = self.app.state
@@ -122,6 +147,26 @@ class BankPage(QWidget):
         self.repay_spin.setRange(1, max(1, min(rmax, 2_000_000_000)))
         self.repay_btn.setEnabled(rmax >= 1)
         self.repay_all.setEnabled(rmax >= 1)
+        owed, room = s.shark_debt, max(0, s.shark_limit - s.shark_debt)
+        if owed > 0:
+            left = max(0, s.shark_due - s.day)
+            self.shark_info.setText(
+                f'You owe the shark {owed:,} TL.  {SHARK_RATE * 100:.0f}% interest every day, and he collects '
+                f'{"today" if left == 0 else f"in {left} day(s)"} (day {s.shark_due}).\n'
+                f'He takes {SHARK_COLLECT_SHARE * 100:.0f}% of your wallet when the day comes '
+                f'(-{abs(SHARK_COLLECT_MENTAL)} mental health). While you owe him, your wins come back '
+                f'{SHARK_CLEAN * 100:.0f}% heavier - he cleans them for you.')
+        else:
+            self.shark_info.setText(
+                f'No dealings with the shark. He lends up to {s.shark_limit:,} TL at your level, '
+                f'{SHARK_RATE * 100:.0f}% a day, collected after {SHARK_DAYS} days. '
+                f'While you owe him he cleans {SHARK_CLEAN * 100:.0f}% extra out of every win.')
+        self.shark_spin.setRange(1, max(1, min(room, 2_000_000_000)))
+        self.shark_btn.setEnabled(room >= 1)
+        smax = min(s.balance, s.shark_debt)
+        self.shark_pay_spin.setRange(1, max(1, min(smax, 2_000_000_000)))
+        self.shark_pay_btn.setEnabled(smax >= 1)
+        self.shark_pay_all.setEnabled(smax >= 1)
 
 
 # --------------------------------------------------------------------------- jobs
@@ -444,6 +489,13 @@ and your current rank is shown under your job in the side panel.</p>
 <p>Savings earn {BANK_INTEREST * 100:.0f}% a day (capped by your level). Loans are limited by your level and cost
 {state.diff['debt_rate'] * 100:.0f}% a day on {state.diff['name']}. If your debt grows past your credit limit it hurts your mental health,
 and if it grows far past it, you lose everything.</p>
+{h('Loan shark')}
+<p>On the bank page there is a second door: the <b>loan shark</b>. No credit check, no paperwork - he lends
+{SHARK_RATE * 100:.0f}% a day (the bank's rate is nothing by comparison), up to {state.shark_limit:,} TL at your level,
+and he gives you exactly {SHARK_DAYS} days. When the day comes he takes {SHARK_COLLECT_SHARE * 100:.0f}% of whatever is in
+your wallet and costs you {abs(SHARK_COLLECT_MENTAL)} mental health, then {SHARK_DAYS} more days are added to the clock.
+The one favour he does you: while you owe him, he cleans black money for free, so every win pays
+{SHARK_CLEAN * 100:.0f}% extra. Owe him three times your ceiling and that is the end of the run.</p>
 {h('Shop')}
 <ul>{items}</ul>
 {h('Random events')}

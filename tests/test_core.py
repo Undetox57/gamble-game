@@ -216,6 +216,79 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(e.repay(206))
         self.assertIn('debt_free', e.meta.achievements)
 
+    def test_loan_shark_lends_collects_and_is_paid_off(self):
+        s, e = self.s, self.e
+        self.assertEqual(s.shark_limit, config.SHARK_LIMIT_PER_LEVEL)      # level 1
+        self.assertEqual((s.shark_debt, s.shark_due), (0, 0))
+        self.assertTrue(e.shark_borrow(1500))
+        self.assertEqual(s.shark_debt, 1500)
+        self.assertEqual(s.shark_due, s.day + config.SHARK_DAYS, 'every advance buys SHARK_DAYS of time')
+        self.assertFalse(e.shark_borrow(600), 'he never lends past his ceiling')
+        self.assertFalse(e.shark_borrow(0))
+        e.advance_day()                                                   # one day of 6% interest
+        self.assertEqual(s.shark_debt, 1500 + max(1, round(1500 * config.SHARK_RATE)))
+        while s.day < s.shark_due - 1:                                    # walk up to the day before
+            e.advance_day()
+        owed, bal, mood = s.shark_debt, s.balance, s.mental
+        self.assertEqual((owed, s.day), (1786, s.shark_due - 1), 'interest compounds every single day')
+        e.advance_day()                                                   # the deadline: he knocks
+        interest = max(1, round(owed * config.SHARK_RATE))
+        seized = min(int(bal * config.SHARK_COLLECT_SHARE), owed + interest)
+        self.assertEqual(s.shark_debt, owed + interest - seized)
+        self.assertEqual(s.balance, bal - seized, 'he takes a quarter of the wallet, capped by the debt')
+        self.assertEqual(s.mental, mood + config.SHARK_COLLECT_MENTAL)
+        self.assertGreater(s.shark_debt, 0, 'he does not forgive the rest')
+        self.assertEqual(s.shark_due, s.day + config.SHARK_DAYS, '...but he gives you more time')
+        # pay him off in full (max level first: the achievement's 25 exp would level you up otherwise)
+        s.exp, s.balance, s.mental = config.LEVEL_EXP[-1], 100_000, 50
+        self.assertFalse(e.shark_pay(10 ** 6), 'cannot pay more than you owe')
+        self.assertTrue(e.shark_pay(s.shark_debt))
+        self.assertEqual((s.shark_debt, s.shark_due), (0, 0))
+        self.assertEqual(s.mental, 60, 'being free of him lifts a weight')
+        self.assertIn('shark_free', e.meta.achievements)
+
+    def test_shark_cleans_your_winnings_but_not_your_losses(self):
+        s, e = self.s, self.e
+        d, _ins, notes = e.apply_item_modifiers(100, True, 100)
+        self.assertEqual(d, 100, 'no debt, no laundering bonus')
+        s.shark_debt = 500
+        d, _ins, notes = e.apply_item_modifiers(100, True, 100)
+        self.assertEqual(d, 115, '15% extra while you owe him')
+        self.assertTrue(any('shark' in n.lower() for n in notes), notes)
+        d, _ins, _n = e.apply_item_modifiers(-100, False, 100)
+        self.assertEqual(d, -100, 'a loss is never cleaned')
+        s.shark_debt = 0
+
+    def test_shark_debt_is_net_worth_and_can_end_the_run(self):
+        s, e = self.s, self.e
+        s.balance, s.bank, s.debt = 1000, 500, 0
+        self.assertEqual(s.net_worth, 1500)
+        s.shark_debt = 400
+        self.assertEqual(s.net_worth, 1100, 'money you owe the shark is not yours')
+        s.set_defaults()
+        s.start_run('normal')
+        s.shark_debt = config.SHARK_SPIRAL_MULT * s.shark_limit + 1
+        self.assertEqual(e.check_endings(), 'debt_spiral')
+        s.set_defaults()
+        s.start_run('normal')
+        self.assertIsNone(e.check_endings())
+
+    def test_shark_state_is_saved_and_old_saves_load(self):
+        s = self.s
+        s.shark_debt, s.shark_due = 750, 9
+        self.assertIsNone(s.save())
+        t = GameState()
+        self.assertIsNone(t.load())
+        self.assertEqual((t.shark_debt, t.shark_due), (750, 9))
+        with open(config.SAVE_FILE, encoding='utf-8') as f:                # a save from before the shark
+            lines = [ln for ln in f if not ln.startswith('x:shark_')]
+        with open(config.SAVE_FILE, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        u = GameState()
+        self.assertIsNone(u.load())
+        self.assertEqual((u.shark_debt, u.shark_due), (0, 0), 'old saves simply owe him nothing')
+        self.assertEqual(u.net_worth, u.balance + int(u.bank) - u.debt)
+
     def test_endings(self):
         s, e = self.s, self.e
         s.mental = 0
