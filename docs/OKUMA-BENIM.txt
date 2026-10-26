@@ -3,7 +3,8 @@ GAMBLE GAME - kısa bilgi
 
 Ne bu?
     Bir kumarhane-yaşam simülasyonu: çalış, borçlan, kumar oyna, hedefe ulaş.
-    15+ oyun, ~%92 ortalama ödeme (RTP), 6 farklı final. Ücretsiz, MIT lisanslı, açık kaynak.
+    16 oyun, turnuva modu, tefeci (kara para), ~%92 ortalama ödeme (RTP), 6 farklı final.
+    Ücretsiz, MIT lisanslı, açık kaynak.
 
 
 NASIL AÇILIR?

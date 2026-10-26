@@ -2,6 +2,10 @@
 
 A casino-life simulation: work, gamble, borrow, level up, and try to reach your goal (or find another way out).
 
+16 games at ~92% RTP, plus two ways to change the stakes: the **loan shark** (6% a day, a hard deadline,
+but he cleans a cut of your wins) and the **tournament** (a fixed-fee, 10-day race against your own
+net worth, ranked per difficulty).
+
     pip install PyQt6
     python gamble_gui.py
 
@@ -20,7 +24,7 @@ next to `gamble_gui.py`. Old saves load fine; the console version can still read
       events.py          the random events
       style.py           stylesheet, themes, display settings
       widgets.py         shared widgets (cards, chart, confetti)
-      games/             one page per game (base.py, basic.py, table.py, crash.py, plinko.py, hilo.py, mines.py)
+      games/             one page per game (base.py, basic.py, table.py, crash.py, plinko.py, hilo.py, mines.py, keno.py)
       pages.py           bank, jobs, shop, achievements, statistics, how to play
       dialogs.py         events, endings, settings, new game
       window.py          main window, navigation, keyboard shortcuts
