@@ -3,8 +3,8 @@ import time
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import (QAbstractItemView, QFrame, QHBoxLayout, QHeaderView, QLabel, QScrollArea, QSpinBox,
-                             QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (QAbstractItemView, QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLabel,
+                             QScrollArea, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import rules
 from .i18n import current, tr, txf
@@ -19,7 +19,7 @@ from .widgets import AC, Button, LineChart, back_button, clear_layout, page_titl
 
 def amount_row(*widgets):
     row = QHBoxLayout()
-    row.addWidget(QLabel('Amount:'))
+    row.addWidget(QLabel(tr('Amount:')))
     for w in widgets:
         row.addWidget(w)
     row.addStretch()
@@ -472,6 +472,93 @@ class StatsPage(QWidget):
                     'net worth this session {n} TL',
                     m=minutes, g=ses["games"], w=ses["wins"], l=ses["games"] - ses["wins"],
                     b=f'{ses["best"]:,}', n=f'{s.net_worth - ses["net0"]:+,}'))
+
+
+# --------------------------------------------------------------------------- trophy room
+class TrophyPage(QWidget):
+    """D11: every achievement as a trophy in a case, plus the record plaques."""
+
+    def __init__(self, app):
+        super().__init__()
+        self.app = app
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(8)
+        lay.addWidget(page_title(tr('🏆  Trophy room')))
+        self.case_lbl = section('')
+        lay.addWidget(self.case_lbl)
+        self.case = QGridLayout()
+        self.case.setHorizontalSpacing(10)
+        self.case.setVerticalSpacing(10)
+        lay.addLayout(self.case)
+        lay.addWidget(section(tr('RECORD PLAQUES')))
+        self.plaques = QGridLayout()
+        self.plaques.setHorizontalSpacing(10)
+        self.plaques.setVerticalSpacing(10)
+        lay.addLayout(self.plaques)
+        lay.addWidget(back_button(app), 0, Qt.AlignmentFlag.AlignLeft)
+
+    @staticmethod
+    def trophy(got, title, desc, reward):
+        """One trophy: gold when earned, a dim silhouette when still locked."""
+        card = QFrame()
+        card.setObjectName('panel')
+        hl = QHBoxLayout(card)
+        hl.setSpacing(10)
+        icon = QLabel('🏆' if got else '🤍')
+        icon.setWordWrap(False)
+        icon.setStyleSheet(f'font-size:30px; color:{"#f4c542" if got else "#4a5165"};')
+        text = QVBoxLayout()
+        text.setSpacing(2)
+        name = QLabel(f"<b style='font-size:15px'>{title}</b>")
+        name.setWordWrap(True)
+        note = QLabel(desc)
+        note.setObjectName('itemDesc')
+        note.setWordWrap(True)
+        text.addWidget(name)
+        text.addWidget(note)
+        if reward:
+            text.addWidget(QLabel(txf('+{n} exp', n=reward)))
+        hl.addWidget(icon, 0, Qt.AlignmentFlag.AlignTop)
+        hl.addLayout(text, 1)
+        card.setStyleSheet('' if got else 'QLabel{color:#7a8299;}')
+        return card
+
+    @staticmethod
+    def plaque(caption, value, color):
+        card = QFrame()
+        card.setObjectName('panel')
+        cl = QVBoxLayout(card)
+        cl.setSpacing(0)
+        big, cap = QLabel(str(value)), QLabel(caption)
+        big.setObjectName('statBig')
+        cap.setObjectName('statCap')
+        big.setStyleSheet(f'color:{color};')
+        cl.addWidget(big)
+        cl.addWidget(cap)
+        return card
+
+    def refresh(self):
+        s, meta = self.app.state, self.app.meta
+        earned = sum(1 for k, *_ in ACHIEVEMENTS if k in meta.achievements)
+        self.case_lbl.setText(txf('TROPHY CASE  {a}/{b}', a=earned, b=len(ACHIEVEMENTS)))
+        clear_layout(self.case)
+        for i, (k, title, desc, reward) in enumerate(ACHIEVEMENTS):
+            got = k in meta.achievements
+            self.case.addWidget(self.trophy(got, tr(title), tr(desc), reward), i // 3, i % 3)
+        records = getattr(meta, 'records', {})
+        tours = getattr(meta, 'tournaments', {})
+        gold, green, red = '#f4c542', '#4cc38a', '#ff6b6b'
+        items = ((tr('Best net worth ever'), f'{max(records.values()):,} TL' if max(records.values()) else '-',
+                  gold),
+                 (tr('Best tournament'), f'{max(tours.values()):,} TL' if max(tours.values()) else '-', gold),
+                 (tr('Achievements'), f'{len(meta.achievements)} / {len(ACHIEVEMENTS)}', green),
+                 (tr('Endings'), f'{len(meta.endings)} / {len(ENDINGS)}', green),
+                 (tr('Best win this run'), f'+{s.best_win:,} TL' if s.best_win else '-', green),
+                 (tr('This run'), txf('day {d}  •  level {l}', d=s.day, l=s.level), gold))
+        clear_layout(self.plaques)
+        for i, (caption, value, color) in enumerate(items):
+            self.plaques.addWidget(self.plaque(caption, value, color), i // 3, i % 3)
 
 
 # --------------------------------------------------------------------------- how to play

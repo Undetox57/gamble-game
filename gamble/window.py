@@ -20,7 +20,7 @@ from .engine import Engine
 from .fx import alive
 from .games import GAMES
 from .i18n import current, set_lang, tr, txf
-from .pages import AchievementsPage, BankPage, HelpPage, JobsPage, ShopPage, StatsPage
+from .pages import AchievementsPage, BankPage, HelpPage, JobsPage, ShopPage, StatsPage, TrophyPage
 from .style import ANIM_SPEEDS, CARD_SIZES, CATEGORY_ACCENTS, GAME_ICONS, TEXT_SCALES, Settings, build_style
 from .widgets import Button, Confetti, section, set_card_scale
 
@@ -99,9 +99,10 @@ class MainWindow(QMainWindow):
         self.bank_page, self.stats_page = BankPage(self), StatsPage(self)
         self.jobs_page, self.ach_page = JobsPage(self), AchievementsPage(self)
         self.shop_page, self.help_page = ShopPage(self), HelpPage(self)
+        self.trophy_page = TrophyPage(self)                  # D11: the trophy case
         self.page_wrap = {}
         for w in (self.lobby, self.bank_page, self.stats_page, self.jobs_page, self.ach_page, self.shop_page,
-                  self.help_page):
+                  self.help_page, self.trophy_page):
             wrap = w if w is self.lobby else self.scrollable(w)
             self.page_wrap[w] = wrap
             self.stack.addWidget(wrap)
@@ -329,6 +330,7 @@ class MainWindow(QMainWindow):
         lay.addWidget(section(tr('MENU')))
         lay.addLayout(grid([act('stats', tr('Statistics'), fn=self.show_stats),
                             act('ach', tr('Achievements'), fn=self.show_achievements),
+                            (tr('Trophy room'), K.Key_unknown, self.show_trophies, None, None),   # D11
                             act('help', tr('How to Play'), fn=self.show_help),
                             act('settings', tr('Settings'), fn=self.open_settings),
                             (tr('Reset Game'), K.Key_unknown, self.reset_game, 'danger', None),
@@ -417,15 +419,18 @@ class MainWindow(QMainWindow):
             return
         set_lang(lang)
         old = self.centralWidget()
-        page = self.stack.currentWidget() if hasattr(self, 'stack') else None
-        key = next((k for k in ('bank', 'stats', 'jobs', 'ach', 'shop', 'help')
-                    if page is getattr(self, f'{k}_page', None)), None)
+        # the stack holds the wrapped pages (a scroll area), so compare against the wrapper
+        current = self.stack.currentWidget() if hasattr(self, 'stack') else None
+        key = next((k for k in ('bank', 'stats', 'jobs', 'ach', 'shop', 'help', 'trophy')
+                    if current is self.page_wrap.get(getattr(self, f'{k}_page', None))), None)
         self.build_ui()                                # rebuilds in the new language, then re-applies
         if old is not None:
             old.deleteLater()
         self._last_balance = None
         target = getattr(self, f'{key}_page') if key else self.lobby
         self.stack.setCurrentWidget(self.page_wrap.get(target, target))
+        if key:                                          # the rebuilt page starts empty
+            target.refresh()
         self.refresh()
         self.settings.save()
 
@@ -784,6 +789,9 @@ class MainWindow(QMainWindow):
 
     def show_shop(self):
         self.show_page(self.shop_page)
+
+    def show_trophies(self):                            # D11
+        self.show_page(self.trophy_page)
 
     def show_help(self):
         self.show_page(self.help_page)

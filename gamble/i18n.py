@@ -54,6 +54,16 @@ TR = {'tr': {
     'SESSION': 'OTURUM',
     'LEVEL': 'SEVİYE',
 
+    # ---- trophy room (D11)
+    '🏆  Trophy room': '🏆  Trofe Odası',
+    'Trophy room': 'Trofe Odası',
+    'TROPHY CASE  {a}/{b}': 'TROFE VİTRİNİ  {a}/{b}',
+    'RECORD PLAQUES': 'REKOR LEVHALARI',
+    'Best win this run': 'Bu koşudaki en iyi kazanç',
+    'Endings': 'Sonuçlar',
+    'Amount:': 'Tutar:',
+    'day {d}  •  level {l}': 'gün {d}  •  seviye {l}',
+
     # ---- result card (D10)
     'Result card': 'Sonuç kartı',
     '📸  Share result card': '📸  Sonuç kartını paylaş',
