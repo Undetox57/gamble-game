@@ -1,0 +1,23 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# --- build output (regenerate with PyInstaller) ---
+build/
+dist/
+*.exe
+
+# --- personal / machine state: never commit these ---
+savegame.txt
+gamble_meta.txt
+gamble_settings.txt
+
+# --- installer output ---
+installer/Output/
+
+# --- editors / OS ---
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini

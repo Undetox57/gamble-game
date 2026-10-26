@@ -1,0 +1,777 @@
+"""The main window: layout, navigation, keyboard shortcuts and the small visual effects.
+All game rules live in engine.py; this file only shows them and asks the engine to act."""
+import html
+import os
+import time
+
+from PyQt6.QtCore import (QEasingCurve, QParallelAnimationGroup, QPoint, QPropertyAnimation, QRect,
+                          QSequentialAnimationGroup, QVariant, QVariantAnimation, Qt, QTimer)
+from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtWidgets import (QAbstractButton, QApplication, QFrame, QGraphicsOpacityEffect, QGridLayout,
+                             QHBoxLayout, QLabel, QMainWindow, QMessageBox, QProgressBar, QScrollArea, QSpinBox,
+                             QStackedWidget, QTextEdit, QVBoxLayout, QWidget)
+
+from . import config, sound
+from .config import (CATEGORIES, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET, GAME_HOTKEYS, GAME_NAMES, GAME_SUBTITLES,
+                     ITEM_BY_KEY, LEVEL_EXP, LOBBY_ORDER, UNLOCK)
+from .dialogs import EndingDialog, EventDialog, KeybindDialog, NewGameDialog, SettingsDialog, key_from_name
+from .engine import Engine
+from .fx import alive
+from .games import GAMES
+from .pages import AchievementsPage, BankPage, HelpPage, JobsPage, ShopPage, StatsPage
+from .style import ANIM_SPEEDS, CARD_SIZES, CATEGORY_ACCENTS, GAME_ICONS, TEXT_SCALES, Settings, build_style
+from .widgets import Button, Confetti, section, set_card_scale
+
+K = Qt.Key
+DIGITS = [K.Key_1, K.Key_2, K.Key_3, K.Key_4, K.Key_5, K.Key_6, K.Key_7, K.Key_8, K.Key_9, K.Key_0]
+
+
+class MainWindow(QMainWindow):
+    def __init__(self, autostart=True):
+        super().__init__()
+        self.setWindowTitle('Gamble Game')
+        self.resize(1220, 860)
+        self.settings = Settings()
+        self.settings.load()
+        self.engine = Engine()
+        self.state, self.meta = self.engine.state, self.engine.meta
+        self.meta.load()
+        self.engine.log_fn = self.log
+        self.engine.celebrate_fn = self.celebrate
+        self.game_page = None
+        self._last_balance = None
+        self._ticker = None                        # D2: the wallet number counts up instead of jumping
+        self.session = {'start': time.time(), 'games': 0, 'wins': 0, 'best': 0, 'net0': 0}
+
+        central = QWidget()
+        self.setCentralWidget(central)
+        root = QVBoxLayout(central)
+        root.setContentsMargins(16, 12, 16, 12)
+        root.setSpacing(10)
+        head = QHBoxLayout()
+        title = QLabel('🎰  GAMBLE GAME')
+        title.setObjectName('appTitle')
+        head.addWidget(title)
+        head.addStretch()
+        self.fs_btn = Button()
+        self.fs_btn.setObjectName('headBtn')
+        self.fs_btn.clicked.connect(self.toggle_fullscreen)
+        settings_btn = Button('⚙  Settings')
+        settings_btn.setObjectName('headBtn')
+        settings_btn.clicked.connect(self.open_settings)
+        head.addWidget(self.fs_btn)
+        head.addWidget(settings_btn)
+        root.addLayout(head)
+        hairline = QFrame()
+        hairline.setObjectName('hairline')
+        hairline.setFixedHeight(2)
+        root.addWidget(hairline)
+        mid = QHBoxLayout()
+        mid.setSpacing(14)
+        mid.addWidget(self.build_side())
+        self.stack = QStackedWidget()
+        self.lobby = self.build_lobby()
+        self.bank_page, self.stats_page = BankPage(self), StatsPage(self)
+        self.jobs_page, self.ach_page = JobsPage(self), AchievementsPage(self)
+        self.shop_page, self.help_page = ShopPage(self), HelpPage(self)
+        for w in (self.lobby, self.bank_page, self.stats_page, self.jobs_page, self.ach_page, self.shop_page,
+                  self.help_page):
+            self.stack.addWidget(w)
+        mid.addWidget(self.stack, 1)
+        root.addLayout(mid, 1)
+        self.logbox = QTextEdit()
+        self.logbox.setReadOnly(True)
+        self.logbox.setFixedHeight(110)
+        root.addWidget(self.logbox)
+        self.confetti = Confetti(central)
+        QShortcut(QKeySequence('F11'), self).activated.connect(self.toggle_fullscreen)
+        QShortcut(QKeySequence('F1'), self).activated.connect(self.show_help)
+        QShortcut(QKeySequence('Ctrl+Q'), self).activated.connect(self.close)
+        self.apply_settings(initial=True)
+
+        self.log('Welcome to the Gamble Game!', 'warn')
+        self.fresh_install = not os.path.exists(config.SAVE_FILE)
+        err = self.state.load()
+        if err:
+            self.log(err, 'loss')
+        self.session['net0'] = self.state.net_worth     # D1: the session starts here
+        self.stack.setCurrentWidget(self.lobby)
+        self.refresh()
+        if autostart:
+            QTimer.singleShot(0, self.startup)
+
+    # ---- startup
+    def startup(self):
+        if self.fresh_install:
+            self.ask_new_game(first_time=True)
+        elif not self.handle_endings():
+            self.process_events()
+
+    def ask_new_game(self, first_time=False):
+        dlg = NewGameDialog(self, first_time)
+        dlg.exec()
+        self.engine.new_game(dlg.choice)
+        self._last_balance = None
+        self.session['net0'] = self.state.net_worth      # a new run: the session starts over too
+        self.refresh()
+        if first_time and not self.settings.help_seen:
+            self.settings.help_seen = True
+            self.settings.save()
+            self.show_help()
+
+    # ---- building the UI
+    def build_side(self):
+        f = QFrame()
+        f.setObjectName('panel')
+        f.setFixedWidth(280)
+        self.side = f
+        lay = QVBoxLayout(f)
+        lay.setSpacing(4)
+        self.lbl_day = QLabel()
+        self.lbl_day.setObjectName('bigDay')
+        lay.addWidget(self.lbl_day)
+        self.lbl_job = QLabel()
+        self.lbl_job.setObjectName('hint')
+        self.lbl_job.setWordWrap(True)
+        lay.addWidget(self.lbl_job)
+        lay.addSpacing(4)
+        lay.addWidget(section('WALLET'))
+        self.lbl_balance = QLabel()
+        self.lbl_balance.setObjectName('bigMoney')
+        lay.addWidget(self.lbl_balance)
+        self.lbl_bank = QLabel()
+        self.lbl_bank.setObjectName('bank')
+        lay.addWidget(self.lbl_bank)
+        self.lbl_debt = QLabel()
+        self.lbl_debt.setObjectName('debt')
+        lay.addWidget(self.lbl_debt)
+        lay.addSpacing(4)
+        self.lbl_level = section('')
+        lay.addWidget(self.lbl_level)
+        self.bar_exp = QProgressBar()
+        self.bar_exp.setStyleSheet('QProgressBar::chunk{background:#6c8cff;border-radius:7px;}')
+        lay.addWidget(self.bar_exp)
+        self.lbl_mental = section('')
+        lay.addWidget(self.lbl_mental)
+        self.bar_mental = QProgressBar()
+        self.bar_mental.setRange(0, 100)
+        lay.addWidget(self.bar_mental)
+        self.lbl_streak = section('')
+        lay.addWidget(self.lbl_streak)
+        self.bar_streak = QProgressBar()
+        self.bar_streak.setRange(0, 7)
+        self.bar_streak.setFormat('%v / 7')
+        lay.addWidget(self.bar_streak)
+        lay.addWidget(section('GOAL'))
+        self.bar_goal = QProgressBar()
+        self.bar_goal.setStyleSheet('QProgressBar::chunk{background:#d4a017;border-radius:7px;}')
+        lay.addWidget(self.bar_goal)
+        lay.addSpacing(4)
+        self.lbl_nogamble, self.lbl_today = QLabel(), QLabel()
+        self.lbl_skipped, self.lbl_limits = QLabel(), QLabel()
+        self.lbl_items = QLabel()
+        self.lbl_items.setObjectName('hint')
+        for w in (self.lbl_nogamble, self.lbl_today, self.lbl_skipped, self.lbl_limits, self.lbl_items):
+            w.setWordWrap(True)
+            lay.addWidget(w)
+        self.lbl_status = QLabel()
+        self.lbl_status.setObjectName('status')
+        self.lbl_status.setWordWrap(True)
+        lay.addWidget(self.lbl_status)
+        lay.addStretch()
+        return f
+
+    def build_lobby(self):
+        inner = QWidget()
+        lay = QVBoxLayout(inner)
+        lay.setContentsMargins(0, 0, 8, 0)
+        lay.setSpacing(8)
+        bar = QFrame()
+        bar.setObjectName('panel')
+        bl = QHBoxLayout(bar)
+        bl.addWidget(QLabel('Your bet (TL):'))
+        self.bet_spin = QSpinBox()
+        self.bet_spin.setRange(1, 100)
+        self.bet_spin.setValue(10)
+        self.bet_spin.setMinimumWidth(140)
+        self.bet_spin.setFocusPolicy(Qt.FocusPolicy.ClickFocus)       # so the number keys can start games
+        self.bet_spin.editingFinished.connect(self.setFocus)
+        bl.addWidget(self.bet_spin)
+        for text, fn in (('Min', lambda: self.bet_spin.setValue(1)),
+                         ('½', lambda: self.bet_spin.setValue(max(1, self.bet_spin.value() // 2))),
+                         ('×2', lambda: self.bet_spin.setValue(self.bet_spin.value() * 2)),
+                         ('Max', lambda: self.bet_spin.setValue(self.bet_spin.maximum()))):
+            b = Button(text)
+            b.clicked.connect(fn)
+            bl.addWidget(b)
+        self.lbl_maxbet = QLabel()
+        self.lbl_maxbet.setObjectName('hint')
+        bl.addWidget(self.lbl_maxbet)
+        bl.addStretch()
+        lay.addWidget(bar)
+
+        # ---- streak side bet (B6): stake a fixed amount on winning N one-shot games in a row
+        lay.addWidget(section('STREAK BET'))
+        sb_panel = QFrame()
+        sb_panel.setObjectName('panel')
+        sbl = QVBoxLayout(sb_panel)
+        sbl.setContentsMargins(12, 8, 12, 8)
+        sbl.setSpacing(6)
+        sb_top = QHBoxLayout()
+        sb_top.addWidget(QLabel('Stake (TL):'))
+        self.sb_spin = QSpinBox()
+        self.sb_spin.setRange(1, 100)
+        self.sb_spin.setValue(10)
+        self.sb_spin.setMinimumWidth(120)
+        self.sb_spin.setFocusPolicy(Qt.FocusPolicy.ClickFocus)       # digits stay for starting games
+        self.sb_spin.valueChanged.connect(self.streak_labels)
+        sb_top.addWidget(self.sb_spin)
+        sb_top.addStretch()
+        sbl.addLayout(sb_top)
+        sb_row = QHBoxLayout()
+        self.sb_btns = {}
+        for target in (3, 5, 7, 10):
+            b = Button()
+            b.setObjectName('gameBtn')
+            b.clicked.connect(lambda _=False, t=target: self.place_streak(t))
+            sb_row.addWidget(b)
+            self.sb_btns[target] = b
+        sbl.addLayout(sb_row)
+        self.sb_cash = Button('CASH OUT THE STREAK BET')
+        self.sb_cash.clicked.connect(self.cash_streak)
+        self.sb_cash.setVisible(False)
+        sbl.addWidget(self.sb_cash)
+        self.sb_prog = QLabel()
+        self.sb_prog.setObjectName('hint')
+        self.sb_prog.setWordWrap(True)
+        sbl.addWidget(self.sb_prog)
+        lay.addWidget(sb_panel)
+
+        self.lobby_keys = {}
+        self.game_btns = {}
+        for cat, keys in CATEGORIES:
+            lay.addWidget(section(cat))
+            row = QHBoxLayout()
+            for k in keys:
+                b = Button()
+                b.setObjectName('gameBtn')
+                b.setStyleSheet(f'QPushButton#gameBtn {{ border-left:4px solid {CATEGORY_ACCENTS[cat]}; }}')
+                b.clicked.connect(lambda _=False, k=k: self.start_game(k))
+                row.addWidget(b)
+                self.game_btns[k] = b
+                i = LOBBY_ORDER.index(k)
+                self.lobby_keys[(DIGITS[i % 10], i >= 10)] = b          # 1-9, 0, then Alt+1..5
+            lay.addLayout(row)
+
+        def grid(items):
+            g = QGridLayout()
+            for c in range(3):
+                g.setColumnStretch(c, 1)
+            for i, (label, key, fn, name, action) in enumerate(items):
+                b = Button(label)
+                if name:
+                    b.setObjectName(name)
+                b.clicked.connect(fn)
+                g.addWidget(b, i // 3, i % 3)
+                if action:
+                    self.action_btns[action] = b
+                    if key != K.Key_unknown:
+                        self.lobby_keys[(key, False)] = b
+            return g
+
+        # D6: which key runs which action can be changed in Settings -> Key bindings
+        self.keyname = self.settings.keymap()
+        self.action_btns, self.action_text = {}, {}
+
+        def act(action, title, suffix='', fn=None, name=None):
+            self.action_text[action] = (title, suffix)
+            return (f'{title}  [{self.keyname[action]}]' + (f'\n{suffix}' if suffix else ''),
+                    key_from_name(self.keyname[action]), fn, name, action)
+
+        lay.addWidget(section('LIFE & MONEY'))
+        life = grid([act('work', 'Go to Work', fn=self.go_work),
+                     act('day', 'Pass Day', fn=self.pass_day),
+                     act('out', 'Go out with loved one', '100 TL  •  7 days', fn=self.go_out),
+                     act('bank', 'Bank && Loans', fn=self.show_bank),
+                     act('jobs', 'Jobs', fn=self.show_jobs),
+                     act('shop', 'Shop', fn=self.show_shop)])
+        self.work_btn = self.action_btns['work']
+        self.out_btn = self.action_btns['out']
+        lay.addLayout(life)
+        lay.addWidget(section('MENU'))
+        lay.addLayout(grid([act('stats', 'Statistics', fn=self.show_stats),
+                            act('ach', 'Achievements', fn=self.show_achievements),
+                            act('help', 'How to Play', fn=self.show_help),
+                            act('settings', 'Settings', fn=self.open_settings),
+                            ('Reset Game', K.Key_unknown, self.reset_game, 'danger', None),
+                            ('Save && Quit', K.Key_unknown, self.close, None, None)]))
+        lay.addStretch()
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(inner)
+        scroll.viewport().setAutoFillBackground(False)
+        return scroll
+
+    # ---- keyboard
+    @staticmethod
+    def trigger(target):
+        if isinstance(target, QAbstractButton):
+            if target.isVisible() and target.isEnabled():
+                target.click()
+                return True
+            return False
+        target()
+        return True
+
+    def keyPressEvent(self, e):
+        key = e.key()
+        alt = bool(e.modifiers() & Qt.KeyboardModifier.AltModifier)
+        if key == K.Key_Escape:
+            self.go_back()
+            e.accept()
+            return
+        cur = self.stack.currentWidget()
+        if cur is self.lobby:
+            targets = [self.lobby_keys[(key, alt)]] if (key, alt) in self.lobby_keys else []
+        elif cur is self.game_page and not alt:
+            targets = self.game_page.keys.get(key, [])
+        else:
+            targets = []
+        for t in targets:
+            if self.trigger(t):
+                e.accept()
+                return
+        super().keyPressEvent(e)
+
+    def go_back(self):
+        if self.focusWidget() is self.bet_spin:            # Esc first leaves the bet box
+            self.setFocus()
+            return
+        cur = self.stack.currentWidget()
+        if cur is self.lobby:
+            self.exit_fullscreen()
+        elif cur is self.game_page and self.game_page.in_progress:
+            return                                          # no walking out of a round
+        else:
+            self.show_lobby()
+
+    # ---- display settings and small visual effects
+    def anim_factor(self):
+        return ANIM_SPEEDS[self.settings.anim][1]
+
+    def apply_settings(self, initial=False):
+        st = self.settings
+        QApplication.instance().setStyleSheet(build_style(st.theme, st.text))
+        self.logbox.setVisible(st.show_log)
+        self.side.setFixedWidth(round(280 + (TEXT_SCALES[st.text][1] - 1) * 200))
+        sound.set_enabled(st.sound)                          # D5: sound effects on/off
+        set_card_scale(CARD_SIZES[st.cards][1][0] / 68)      # D7: how big the cards are drawn
+        if not initial and getattr(self, 'keyname', None) and st.keymap() != self.keyname:
+            self.rebind_keys()                               # D6: the hotkeys were changed
+        if not initial:
+            if st.fullscreen and not self.isFullScreen():
+                self.showFullScreen()
+            elif not st.fullscreen and self.isFullScreen():
+                self.showNormal()
+        self.fs_btn.setText('⛶  Exit fullscreen' if st.fullscreen else '⛶  Fullscreen')
+        st.save()
+
+    def rebind_keys(self):
+        """D6: point the lobby buttons at their new keys and repaint their labels."""
+        self.keyname = self.settings.keymap()
+        for (k, alt), b in list(self.lobby_keys.items()):
+            if any(b is ab for ab in self.action_btns.values()):
+                del self.lobby_keys[(k, alt)]
+        for action, b in self.action_btns.items():
+            self.lobby_keys[(key_from_name(self.keyname[action]), False)] = b
+            title, suffix = self.action_text[action]
+            b.setText(f'{title}  [{self.keyname[action]}]' + (f'\n{suffix}' if suffix else ''))
+        self.refresh()
+
+    def toggle_fullscreen(self):
+        self.settings.fullscreen = not self.isFullScreen()
+        self.apply_settings()
+
+    def exit_fullscreen(self):
+        if self.isFullScreen():
+            self.settings.fullscreen = False
+            self.apply_settings()
+
+    def open_settings(self):
+        SettingsDialog(self).exec()
+
+    def show_window(self):
+        if self.settings.fullscreen:
+            self.showFullScreen()
+        else:
+            self.show()
+
+    def celebrate(self):
+        if self.settings.effects and hasattr(self, 'confetti'):
+            self.confetti.burst()
+        sound.play('jackpot')
+
+    def set_balance(self, value):
+        """D2: the wallet number rolls to its new value instead of jumping."""
+        target = int(value)
+        if self._ticker is not None:
+            self._ticker.stop()
+            self._ticker = None
+        if not (self.settings.effects and self.anim_factor() > 0 and self._last_balance is not None
+                and target != self._last_balance and alive(self.lbl_balance)):
+            self.lbl_balance.setText(f'{target:,} TL')
+            return
+        anim = QVariantAnimation(self)
+        anim.setStartValue(int(self._last_balance))
+        anim.setEndValue(target)
+        anim.setDuration(max(160, round(450 * self.anim_factor())))
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.valueChanged.connect(lambda v: self.lbl_balance.setText(f'{int(v):,} TL'))
+        anim.finished.connect(lambda: self.lbl_balance.setText(f'{target:,} TL')
+                              if alive(self.lbl_balance) else None)
+        self._ticker = anim
+        anim.start()
+
+    def balloon(self, text, color):
+        """D3: a little speech balloon that pops up over the table and drifts away."""
+        if not self.settings.effects or self.anim_factor() <= 0:
+            return
+        host = self.centralWidget()
+        if host is None or not alive(host):
+            return
+        lbl = QLabel(text, host)
+        lbl.setStyleSheet(f'background:rgba(0,0,0,0.78);color:{color};border:2px solid {color};'
+                          'border-radius:14px;padding:8px 18px;font-size:18px;font-weight:800;')
+        lbl.adjustSize()
+        x = max(8, (host.width() - lbl.width()) // 2)
+        y = round(host.height() * 0.20)
+        start = QPoint(x, y)
+        lbl.move(start)
+        lbl.show()
+        lbl.raise_()
+        end = QRect(start.x(), start.y(), lbl.width(), lbl.height())
+        pop = QRect(start.x() + lbl.width() // 4, start.y() + lbl.height() // 2,
+                    max(8, lbl.width() // 2), max(4, lbl.height() // 2))
+        grow = QPropertyAnimation(lbl, b'geometry', lbl)
+        grow.setStartValue(pop)
+        grow.setEndValue(end)
+        grow.setDuration(220)
+        grow.setEasingCurve(QEasingCurve.Type.OutBack)
+        effect = QGraphicsOpacityEffect(lbl)
+        lbl.setGraphicsEffect(effect)
+        rise = QPropertyAnimation(lbl, b'pos', lbl)
+        rise.setStartValue(start)
+        rise.setEndValue(start + QPoint(0, -44))
+        rise.setDuration(1100)
+        rise.setEasingCurve(QEasingCurve.Type.OutCubic)
+        fade = QPropertyAnimation(effect, b'opacity', lbl)
+        fade.setStartValue(1.0)
+        fade.setEndValue(0.0)
+        fade.setDuration(1100)
+        fade.setEasingCurve(QEasingCurve.Type.InQuad)
+        tail = QParallelAnimationGroup(lbl)
+        for a in (rise, fade):
+            tail.addAnimation(a)
+        seq = QSequentialAnimationGroup(lbl)
+        seq.addAnimation(grow)
+        seq.addPause(240)                              # let the balloon pop before it drifts
+        seq.addAnimation(tail)
+        seq.finished.connect(lbl.deleteLater)
+        seq.start()
+
+    def session_text(self):
+        """D1: what this sitting actually did, in one short paragraph."""
+        s = self.state
+        ses = self.session
+        minutes = max(0, round((time.time() - ses['start']) / 60))
+        net = s.net_worth - ses['net0']
+        return (f'{minutes} min  •  day {s.day}  •  {ses["games"]} games'
+                f' ({ses["wins"]} won, {ses["games"] - ses["wins"]} lost)\n'
+                f'Best round: +{ses["best"]:,} TL     Net worth this session: {net:+,} TL\n'
+                f'Now: {s.net_worth:,} TL')
+
+    def flash_delta(self, delta):
+        """A floating +/- amount next to the wallet."""
+        if not self.settings.effects:
+            return
+        host = self.centralWidget()
+        lbl = QLabel(f'{delta:+,} TL', host)
+        size = round(20 * TEXT_SCALES[self.settings.text][1])
+        lbl.setStyleSheet(f'color:{"#4cc38a" if delta > 0 else "#ff6b6b"};font-size:{size}px;'
+                          'font-weight:800;background:transparent;')
+        lbl.adjustSize()
+        origin = self.lbl_balance.mapTo(host, QPoint(0, 0))
+        start = QPoint(origin.x() + self.lbl_balance.width() - lbl.width() - 4, origin.y() + 2)
+        lbl.move(start)
+        lbl.show()
+        lbl.raise_()
+        effect = QGraphicsOpacityEffect(lbl)
+        lbl.setGraphicsEffect(effect)
+        move = QPropertyAnimation(lbl, b'pos', lbl)
+        move.setStartValue(start)
+        move.setEndValue(start + QPoint(0, -30))
+        move.setEasingCurve(QEasingCurve.Type.OutCubic)
+        fade = QPropertyAnimation(effect, b'opacity', lbl)
+        fade.setStartValue(1.0)
+        fade.setEndValue(0.0)
+        fade.setEasingCurve(QEasingCurve.Type.InQuad)
+        group = QParallelAnimationGroup(lbl)
+        for a in (move, fade):
+            a.setDuration(1300)
+            group.addAnimation(a)
+        group.finished.connect(lbl.deleteLater)
+        group.start()
+
+    # ---- log and refresh
+    def log(self, msg, kind='info'):
+        color = {'info': '#d6d9e3', 'win': '#4cc38a', 'loss': '#ff6b6b', 'warn': '#f4c542'}.get(kind, '#d6d9e3')
+        self.logbox.append(f'<span style="color:{color}">{html.escape(msg)}</span>')
+
+    def refresh(self):
+        eng, s = self.engine, self.state
+        eng.check_achievements()
+        if self._last_balance is not None and s.balance != self._last_balance:
+            self.flash_delta(s.balance - self._last_balance)
+        self._last_balance = s.balance
+        lv = s.level
+        self.lbl_day.setText(f'Day {s.day}')
+        self.lbl_job.setText(f'{s.diff["name"]} difficulty  •  {s.job_info["name"]}  •  '
+                             f'{self.engine.tenure_title()} ({s.worked_days} days worked)')
+        self.set_balance(s.balance)                        # D2: rolls to the new number
+        self.lbl_bank.setText(f'Bank: {s.bank:,.2f} TL')
+        self.lbl_debt.setText(f'Debt: {s.debt:,} TL')
+        self.lbl_debt.setVisible(s.debt > 0)
+        self.lbl_level.setText(f'LEVEL {lv}')
+        cur, need, is_max = eng.level_progress()
+        self.bar_exp.setRange(0, need)
+        self.bar_exp.setValue(need if is_max else cur)
+        self.bar_exp.setFormat(f'{s.exp} exp (MAX)' if is_max else f'{s.exp} / {LEVEL_EXP[lv]} exp')
+        face = '😄' if s.mental > 80 else '🙂' if s.mental > 60 else '😐' if s.mental > 40 else '😟' if s.mental > 20 else '😵'
+        self.lbl_mental.setText(f'MENTAL HEALTH  {face}  {s.mental}/100')
+        self.bar_mental.setValue(s.mental)
+        color = '#4cc38a' if s.mental > 60 else '#e0a526' if s.mental > 30 else '#e5484d'
+        self.bar_mental.setStyleSheet(f'QProgressBar::chunk{{background:{color};border-radius:7px;}}')
+        self.lbl_streak.setText(f'WORK STREAK   {s.work_streak}/7')
+        self.bar_streak.setValue(min(7, s.work_streak))
+        nw = s.net_worth
+        self.bar_goal.setRange(0, s.goal)
+        self.bar_goal.setValue(max(0, min(s.goal, nw)))
+        self.bar_goal.setFormat(f'{nw:,} / {s.goal:,} TL')
+        self.lbl_nogamble.setText(f'No Gamble Days: {s.no_gamble_days}/{CLEAN_TARGET}')
+        self.lbl_today.setText('Games today: ' + '●' * s.games_today + '○' * max(0, 5 - s.games_today)
+                               + f'  {s.games_today}/5')
+        self.lbl_skipped.setText(f'Skipped days (no games): {s.skipped_days}')
+        streaks = (f'{s.clean_streaks}/{CLEAN_STREAKS_FOR_ENDING}' if s.clean_streaks < CLEAN_STREAKS_FOR_ENDING
+                   else f'{s.clean_streaks} ✓')
+        self.lbl_limits.setText(f'Clean streaks: {streaks}   •   '
+                                f'Credit limit: {s.credit_limit:,} TL')
+        owned = [f'{ITEM_BY_KEY[k]["name"]}' + (f' ×{n}' if ITEM_BY_KEY[k]['kind'] == 'consumable' else '')
+                 for k, n in s.items.items() if n > 0 and k in ITEM_BY_KEY]
+        self.lbl_items.setText('Items: ' + ', '.join(owned) if owned else '')
+        self.lbl_items.setVisible(bool(owned))
+        status = []
+        if s.out_days > 0:
+            status.append(f'Protected from mental health loss for {s.out_days} more day(s).')
+        if s.work_cooldown > 0:
+            status.append(f'Too tired to work for {s.work_cooldown} more day(s).')
+        self.lbl_status.setText('\n'.join(status))
+
+        self.bet_spin.setRange(1, max(1, min(s.balance, s.max_bet, 2_000_000_000)))
+        self.lbl_maxbet.setText('max bet: ' + ('no limit' if s.max_bet >= 10 ** 9 else f'{s.max_bet:,} TL'))
+        for k, b in self.game_btns.items():
+            if lv >= UNLOCK[k]:
+                b.setText(f'{GAME_ICONS[k]}  {GAME_NAMES[k]}   [{GAME_HOTKEYS[k]}]\n{GAME_SUBTITLES[k]}')
+                b.setEnabled(s.balance >= 1)
+            else:
+                b.setText(f'{GAME_ICONS[k]}  {GAME_NAMES[k]}\n🔒 Unlocks at level {UNLOCK[k]}')
+                b.setEnabled(False)
+        wk = self.keyname.get('work', 'W')
+        if s.work_cooldown == 0:
+            self.work_btn.setText(f'Go to Work  [{wk}]\n{s.job_info["name"]}: +{eng.work_pay()} TL')
+        else:
+            self.work_btn.setText(f'Go to Work  [{wk}]\nToo tired ({s.work_cooldown} day(s))')
+        self.work_btn.setEnabled(s.work_cooldown == 0)
+        self.out_btn.setEnabled(s.balance >= 100)
+        self.streak_labels()
+        self.bank_page.refresh()
+
+    # ---- endings and events
+    def handle_endings(self):
+        """Shows the ending dialog if the run is over. Returns True if a new run was started."""
+        key = self.engine.check_endings()
+        if not key:
+            return False
+        dlg = EndingDialog(self, key, self.state, self.meta)
+        dlg.exec()
+        if dlg.start_over:
+            self.ask_new_game()
+        else:
+            self.engine.save()
+        self.refresh()
+        return dlg.start_over
+
+    def process_events(self):
+        eng = self.engine
+        while eng.pending_events and self.game_page is None and self.stack.currentWidget() is self.lobby:
+            ev = eng.pending_events.pop(0)
+            dlg = EventDialog(self, ev, self.state)
+            dlg.exec()
+            eng.run_event(ev, dlg.choice if dlg.choice is not None else len(ev['choices']) - 1)
+            self.refresh()
+            if self.handle_endings():
+                break
+
+    def after_life_action(self):
+        self.refresh()
+        if not self.handle_endings():
+            self.process_events()
+
+    # ---- navigation
+    def leave_game_page(self):
+        if self.game_page is not None:
+            self.stack.removeWidget(self.game_page)
+            self.game_page.deleteLater()
+            self.game_page = None
+
+    def set_page(self, w):
+        self.leave_game_page()
+        self.game_page = w
+        self.stack.addWidget(w)
+        self.stack.setCurrentWidget(w)
+
+    def show_lobby(self):
+        self.leave_game_page()
+        self.stack.setCurrentWidget(self.lobby)
+        self.refresh()
+        if not self.handle_endings():
+            self.process_events()
+
+    def show_page(self, page):
+        page.refresh()
+        self.stack.setCurrentWidget(page)
+
+    def show_bank(self):
+        self.show_page(self.bank_page)
+
+    def show_stats(self):
+        self.show_page(self.stats_page)
+
+    def show_jobs(self):
+        self.show_page(self.jobs_page)
+
+    def show_achievements(self):
+        self.show_page(self.ach_page)
+
+    def show_shop(self):
+        self.show_page(self.shop_page)
+
+    def show_help(self):
+        self.show_page(self.help_page)
+
+    def start_game(self, key):
+        s, bet = self.state, self.bet_spin.value()
+        if s.level < UNLOCK[key]:
+            return self.log(f'{GAME_NAMES[key]} unlocks at level {UNLOCK[key]}.', 'warn')
+        if s.balance < 1 or bet <= 0 or bet > s.balance:
+            return self.log('Invalid bet amount!', 'warn')
+        if bet > s.max_bet:
+            return self.log(f'The maximum bet at your level is {s.max_bet:,} TL.', 'warn')
+        self.set_page(GAMES[key](self, bet))
+
+    def play_again(self, key, bet):
+        if self.handle_endings():
+            return self.show_lobby()
+        self.bet_spin.setValue(min(bet, max(1, self.state.balance), self.state.max_bet))
+        self.start_game(key)
+
+    def finish_round(self, key, delta, win, bet, tags, insured):
+        self.engine.finish_game(key, delta, win, bet, tags, insured)
+        ses = self.session                              # D1: what this sitting has been doing
+        ses['games'] += 1
+        ses['wins'] += win is True
+        ses['best'] = max(ses['best'], delta)
+        self.refresh()
+        sound.play('jackpot' if 'jackpot' in tags else 'win' if delta > 0 else
+                   'lose' if delta < 0 else None)       # D5
+        if delta != 0:                                  # D3: a floating chip of the result
+            self.balloon(f'{GAME_NAMES[key]}   {delta:+,} TL',
+                         '#f4c542' if 'jackpot' in tags else '#4cc38a' if delta > 0 else '#ff6b6b')
+
+    # ---- streak side bet (B6)
+    def place_streak(self, target):
+        if not self.engine.place_streak(target, self.sb_spin.value()):
+            return self.log('Streak bet not placed: one is already running, or you cannot afford the stake.',
+                            'warn')
+        self.refresh()
+
+    def streak_labels(self):
+        """Repaint the four streak-bet buttons (their payout depends on the stake in the box)."""
+        stake, s = self.sb_spin.value(), self.state
+        for target, b in self.sb_btns.items():
+            mult = config.STREAK_BETS[target]
+            odds = config.STREAK_P_MAX ** target
+            b.setText(f'{target} in a row\n{mult:g}×  →  {int(stake * mult):,} TL'
+                      + (f'\n{odds * 100:.1f}% chance' if s.has('streak_book') else ''))
+            b.setEnabled(not s.sb_stake and stake <= s.balance)
+        self.sb_spin.setEnabled(not s.sb_stake)
+        if s.sb_stake:
+            self.sb_prog.setText(
+                f'RUNNING: {s.sb_count}/{s.sb_target} won  •  {s.sb_stake:,} TL at stake  •  pays '
+                f'{config.STREAK_BETS[s.sb_target]:g}× = {int(s.sb_stake * config.STREAK_BETS[s.sb_target]):,} TL'
+                f'  •  a loss in a one-shot game drops it.')
+            self.sb_prog.setStyleSheet('color:#f4c542;')
+            can_cash = s.has('streak_book') and s.sb_count > 0
+            self.sb_cash.setVisible(can_cash)
+            if can_cash:
+                value = self.engine.streak_cash_value()
+                self.sb_cash.setText(f'CASH OUT NOW FOR {value:,} TL  (fair value, no gamble)')
+                self.sb_cash.setEnabled(value > 0)
+        else:
+            self.sb_prog.setText(
+                'Win 3, 5, 7 or 10 one-shot games in a row to take the payout. The stake is paid up front and '
+                'cannot be refunded. Crash, Mines and Hi-Lo neither count nor break it; a push is neutral.')
+            self.sb_prog.setStyleSheet('')
+            self.sb_cash.setVisible(False)
+
+    def cash_streak(self):
+        if self.engine.cash_out_streak():
+            self.refresh()
+
+    # ---- life actions (the engine does the work)
+    def go_work(self):
+        self.engine.go_work()
+        self.after_life_action()
+
+    def pass_day(self):
+        self.engine.pass_day()
+        self.after_life_action()
+
+    def go_out(self):
+        self.engine.go_out()
+        self.refresh()
+
+    def reset_game(self):
+        r = QMessageBox.question(self, 'Reset game',
+                                 'Delete your current run and start over?\n(Achievements and endings are kept.)')
+        if r == QMessageBox.StandardButton.Yes:
+            self.leave_game_page()
+            self.stack.setCurrentWidget(self.lobby)
+            self.ask_new_game()
+
+    def closeEvent(self, e):
+        if self.game_page is not None and self.game_page.in_progress:
+            QMessageBox.information(self, 'Game in progress', 'Finish the current round before quitting.')
+            e.ignore()
+            return
+        self.engine.save()
+        if self.session['games'] > 0 and not getattr(self, '_summary_shown', False):   # D1
+            self._summary_shown = True
+            box = QMessageBox(self)
+            box.setWindowTitle('Session summary')
+            box.setIcon(QMessageBox.Icon.NoIcon)
+            box.setText(f'This session\n\n{self.session_text()}')
+            box.setStandardButtons(QMessageBox.StandardButton.Ok)
+            box.exec()
+        e.accept()
