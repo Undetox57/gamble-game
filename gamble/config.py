@@ -66,6 +66,15 @@ SHARK_COLLECT_SHARE = 0.25          # the collector seizes this share of your wa
 SHARK_COLLECT_MENTAL = -15          # mental health cost of that visit
 SHARK_CLEAN = 0.15                  # bonus added to wins while you owe him (money laundering)
 SHARK_SPIRAL_MULT = 3               # shark_debt >= 3x his ceiling = the "Debt Spiral" ending
+
+# ---------------------------------------------------------------- tournament (Turnuva)
+# A fixed-fee, fixed-length race against your own net worth: the entry fee is held for the whole
+# window, so finishing in the black means getting it back plus a bonus - finishing in the red costs it.
+TOURNAMENT_ENTRY = 1000             # flat entry fee, escrowed for the whole window
+TOURNAMENT_DAYS = 10                # how long one tournament runs
+TOURNAMENT_BONUS_RATE = 0.05        # share of your growth paid on top when you finish ahead
+TOURNAMENT_BONUS_CAP = 2500         # ...but never more than this
+TOURNAMENT_EXP = 40                 # exp for finishing one (half of that when you finish behind)
 LEVEL_EXP = [0, 20, 60, 120, 200, 320, 480, 700, 1000, 1400]          # exp needed for level 1..10
 MAX_BET = [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 10 ** 9]  # max bet per level
 
@@ -173,6 +182,8 @@ ACHIEVEMENTS = [
     ('saver', 'Saver', 'Have 500 TL in the bank.', 10),
     ('borrower', 'In The Red', 'Take out your first loan.', 5),
     ('shark_free', 'Off His List', 'Pay the loan shark back in full.', 25),
+    ('tour_finish', 'On The Board', 'Play a tournament to the end.', 15),
+    ('tour_record', 'Tournament Champion', 'Set your best tournament result on a difficulty.', 25),
     ('debt_free', 'Debt Free', 'Fully repay your debt.', 20),
     ('workaholic', 'Workaholic', 'Complete a 7-day work streak.', 20),
     ('promoted', 'Climbing The Ladder', 'Get a job as Manager.', 50),

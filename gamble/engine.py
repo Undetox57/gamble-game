@@ -11,7 +11,8 @@ from .config import (ACH_BY_KEY, BANK_INTEREST, CLEAN_STREAKS_FOR_ENDING, CLEAN_
                      PERMANENT_ITEMS, REFORMED_MIN_GAMES, SHARK_CLEAN, SHARK_COLLECT_MENTAL,
                      SHARK_COLLECT_SHARE, SHARK_DAYS, SHARK_RATE, SHARK_SPIRAL_MULT,
                      STREAK_BETS, STREAK_GAMES, STREAK_P_MAX, TENURE_RANKS, THERAPY_COOLDOWN_DAYS, UNLOCK,
-                     tenure_rank)
+                     TOURNAMENT_BONUS_CAP, TOURNAMENT_BONUS_RATE, TOURNAMENT_DAYS, TOURNAMENT_ENTRY,
+                     TOURNAMENT_EXP, tenure_rank)
 from .events import build_events
 from .state import BET_HISTORY_LIMIT, HISTORY_LIMIT, GameState, MetaState
 
@@ -173,6 +174,8 @@ class Engine:
             self.log(f'Loan shark interest: +{interest:,} TL. You owe him {s.shark_debt:,} TL.', 'loss')
             if s.day >= s.shark_due:
                 self.shark_collect()
+        if s.tour_active and s.day - s.tour_day >= TOURNAMENT_DAYS:
+            self.finish_tournament()               # scored before the history point of this day
         s.history.append((s.day, s.net_worth))
         if len(s.history) > HISTORY_LIMIT:
             s.history = s.history[::2][:-1] + [s.history[-1]]      # thin out old points, keep the newest
@@ -533,6 +536,49 @@ class Engine:
         else:
             s.shark_due = s.day + SHARK_DAYS
             self.log(f'You still owe {s.shark_debt:,} TL. He gives you {SHARK_DAYS} more days.', 'warn')
+
+    # ---- tournament (Turnuva)
+    def enter_tournament(self):
+        """Pay the entry fee and start a TOURNAMENT_DAYS long race against your own net worth."""
+        s = self.state
+        if s.tour_active:
+            self.log(f'A tournament is already running - day {s.day - s.tour_day} of {TOURNAMENT_DAYS}.',
+                     'warn')
+            return False
+        if s.balance < TOURNAMENT_ENTRY:
+            self.log(f'The entry fee is {TOURNAMENT_ENTRY:,} TL - your wallet cannot cover it.', 'warn')
+            return False
+        s.balance -= TOURNAMENT_ENTRY
+        s.tour_active, s.tour_day, s.tour_net = 1, s.day, s.net_worth
+        self.log(f'Tournament entered! {TOURNAMENT_ENTRY:,} TL is held for {TOURNAMENT_DAYS} days. '
+                 f'Beat {s.tour_net:,} TL by day {s.day + TOURNAMENT_DAYS} and you get the entry back '
+                 f'plus a bonus.', 'warn')
+        self.save()
+        return True
+
+    def finish_tournament(self):
+        """Score the window: growth pays the entry back with a bonus, going backwards costs it."""
+        s = self.state
+        s.tour_active = 0
+        score = s.net_worth - s.tour_net
+        if score >= 0:
+            bonus = min(TOURNAMENT_BONUS_CAP, int(score * TOURNAMENT_BONUS_RATE))
+            s.balance += TOURNAMENT_ENTRY + bonus
+            self.log(f'TOURNAMENT FINISHED: {score:+,} TL in {TOURNAMENT_DAYS} days. Your '
+                     f'{TOURNAMENT_ENTRY:,} TL entry is back'
+                     + (f' with a {bonus:,} TL bonus.' if bonus else ' (no growth, no bonus).'), 'win')
+            self.gain_exp(TOURNAMENT_EXP)
+        else:
+            self.log(f'TOURNAMENT FINISHED: {score:+,} TL in {TOURNAMENT_DAYS} days. You finished behind, '
+                     f'so the {TOURNAMENT_ENTRY:,} TL entry fee is gone.', 'loss')
+            self.gain_exp(TOURNAMENT_EXP // 2)
+        self.award('tour_finish')
+        if self.meta.record_tournament(s.difficulty, score):
+            self.save_meta()
+            self.log(f'NEW TOURNAMENT RECORD on {s.diff["name"]}: {score:+,} TL.', 'win')
+            self.award('tour_record')
+        self.save()
+        return score
 
     # ---- shop
     def price(self, key):

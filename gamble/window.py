@@ -13,7 +13,8 @@ from PyQt6.QtWidgets import (QAbstractButton, QApplication, QFrame, QGraphicsOpa
 
 from . import config, sound
 from .config import (CATEGORIES, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET, GAME_HOTKEYS, GAME_NAMES, GAME_SUBTITLES,
-                     ITEM_BY_KEY, LEVEL_EXP, LOBBY_ORDER, UNLOCK)
+                     ITEM_BY_KEY, LEVEL_EXP, LOBBY_ORDER, TOURNAMENT_BONUS_RATE, TOURNAMENT_DAYS,
+                     TOURNAMENT_ENTRY, UNLOCK)
 from .dialogs import EndingDialog, EventDialog, KeybindDialog, NewGameDialog, SettingsDialog, key_from_name
 from .engine import Engine
 from .fx import alive
@@ -298,6 +299,15 @@ class MainWindow(QMainWindow):
         self.work_btn = self.action_btns['work']
         self.out_btn = self.action_btns['out']
         lay.addLayout(life)
+        lay.addWidget(section('TOURNAMENT'))
+        self.tour_btn = Button('Enter tournament')
+        self.tour_btn.setObjectName('primary')
+        self.tour_btn.clicked.connect(self.toggle_tournament)
+        lay.addWidget(self.tour_btn)
+        self.tour_lbl = QLabel()
+        self.tour_lbl.setWordWrap(True)
+        self.tour_lbl.setObjectName('itemDesc')
+        lay.addWidget(self.tour_lbl)
         lay.addWidget(section('MENU'))
         lay.addLayout(grid([act('stats', 'Statistics', fn=self.show_stats),
                             act('ach', 'Achievements', fn=self.show_achievements),
@@ -583,6 +593,25 @@ class MainWindow(QMainWindow):
             status.append(f'Too tired to work for {s.work_cooldown} more day(s).')
         self.lbl_status.setText('\n'.join(status))
 
+        if s.tour_active:                       # TOURNAMENT panel: running window vs. the entry button
+            day_no = min(s.day - s.tour_day, TOURNAMENT_DAYS)
+            self.tour_btn.setText(f'Tournament running  •  day {day_no}/{TOURNAMENT_DAYS}')
+            self.tour_btn.setEnabled(False)
+            self.tour_lbl.setText(
+                f'Started day {s.tour_day} at {s.tour_net:,} TL. Now {s.net_worth:,} TL '
+                f'({s.net_worth - s.tour_net:+,} TL). Finish in the black on day '
+                f'{s.tour_day + TOURNAMENT_DAYS} to get the {TOURNAMENT_ENTRY:,} TL entry back, plus '
+                f'{TOURNAMENT_BONUS_RATE * 100:.0f}% of your growth.')
+        else:
+            best = getattr(self.meta, 'tournaments', {}).get(s.difficulty, 0)
+            self.tour_btn.setText(f'Enter tournament  •  {TOURNAMENT_ENTRY:,} TL, {TOURNAMENT_DAYS} days')
+            self.tour_btn.setEnabled(s.balance >= TOURNAMENT_ENTRY)
+            self.tour_lbl.setText(
+                f'A race against your own net worth. The entry is held; finish ahead and you get it back '
+                f'plus {TOURNAMENT_BONUS_RATE * 100:.0f}% of the growth (capped), finish behind and it is gone. '
+                f'Best on {s.diff["name"]}: {f"{best:+,} TL" if best else "-"}.')
+        self.tour_lbl.setVisible(True)
+
         self.bet_spin.setRange(1, max(1, min(s.balance, s.max_bet, 2_000_000_000)))
         self.lbl_maxbet.setText('max bet: ' + ('no limit' if s.max_bet >= 10 ** 9 else f'{s.max_bet:,} TL'))
         for k, b in self.game_btns.items():
@@ -743,6 +772,11 @@ class MainWindow(QMainWindow):
     def cash_streak(self):
         if self.engine.cash_out_streak():
             self.refresh()
+
+    # ---- tournament (the engine holds the entry fee and scores the window)
+    def toggle_tournament(self):
+        self.engine.enter_tournament()
+        self.refresh()
 
     # ---- life actions (the engine does the work)
     def go_work(self):

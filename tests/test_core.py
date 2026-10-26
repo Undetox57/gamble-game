@@ -289,6 +289,72 @@ class EngineTest(unittest.TestCase):
         self.assertEqual((u.shark_debt, u.shark_due), (0, 0), 'old saves simply owe him nothing')
         self.assertEqual(u.net_worth, u.balance + int(u.bank) - u.debt)
 
+    def test_tournament_holds_the_entry_and_scores_the_window(self):
+        s, e = self.s, self.e
+        s.exp = config.LEVEL_EXP[-1]                                  # max level: no level-up side effects
+        s.balance = 100
+        self.assertFalse(e.enter_tournament(), 'the entry fee has to be covered')
+        self.assertEqual(s.tour_active, 0)
+        s.balance = 5000
+        self.assertTrue(e.enter_tournament())
+        self.assertEqual(s.balance, 5000 - config.TOURNAMENT_ENTRY)
+        self.assertEqual((s.tour_active, s.tour_day, s.tour_net), (1, s.day, 4000),
+                         'the score starts from the net worth AFTER the fee was held')
+        self.assertFalse(e.enter_tournament(), 'only one tournament at a time')
+        s.balance -= 3000                                            # you finish the window behind
+        for _ in range(config.TOURNAMENT_DAYS):
+            e.advance_day()
+        self.assertEqual(s.tour_active, 0, 'the window closes after TOURNAMENT_DAYS days')
+        self.assertEqual(s.balance, 5000 - config.TOURNAMENT_ENTRY - 3000, 'going backwards forfeits the fee')
+        self.assertEqual(e.meta.tournaments[s.difficulty], 0, 'a negative result is not a record')
+        self.assertIn('tour_finish', e.meta.achievements)
+        self.assertNotIn('tour_record', e.meta.achievements)
+        # second attempt: finish in the black and the entry comes back with a bonus
+        s.balance = 5000
+        self.assertTrue(e.enter_tournament())
+        start_day = s.day
+        s.balance += 2000
+        for _ in range(config.TOURNAMENT_DAYS):
+            e.advance_day()
+        self.assertEqual(s.day, start_day + config.TOURNAMENT_DAYS)
+        bonus = min(config.TOURNAMENT_BONUS_CAP, int(2000 * config.TOURNAMENT_BONUS_RATE))
+        self.assertEqual(s.balance, 5000 - config.TOURNAMENT_ENTRY + 2000 + config.TOURNAMENT_ENTRY + bonus)
+        self.assertEqual(e.meta.tournaments[s.difficulty], 2000, 'the best result is kept per difficulty')
+        self.assertIn('tour_record', e.meta.achievements)
+        self.assertEqual(e.meta.tournaments['hard'], 0, 'records stay separate per difficulty')
+
+    def test_tournament_state_is_saved_and_old_saves_load(self):
+        s = self.s
+        s.tour_active, s.tour_day, s.tour_net = 1, 7, -300
+        self.assertIsNone(s.save())
+        t = GameState()
+        self.assertIsNone(t.load())
+        self.assertEqual((t.tour_active, t.tour_day, t.tour_net), (1, 7, -300))
+        with open(config.SAVE_FILE, encoding='utf-8') as f:            # a save from before the tournament
+            lines = [ln for ln in f if not ln.startswith('x:tour_')]
+        with open(config.SAVE_FILE, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        u = GameState()
+        self.assertIsNone(u.load())
+        self.assertEqual((u.tour_active, u.tour_day, u.tour_net), (0, 0, 0))
+        # tournament records live in the meta file, next to achievements and net worth records
+        meta = MetaState()
+        self.assertTrue(meta.record_tournament('normal', 1200))
+        self.assertFalse(meta.record_tournament('normal', 500), 'only a better result replaces it')
+        self.assertIsNone(meta.save())
+        m2 = MetaState()
+        m2.load()
+        self.assertEqual(m2.tournaments['normal'], 1200)
+        self.assertEqual(m2.tournaments['hard'], 0)
+        with open(config.META_FILE, encoding='utf-8') as f:            # an old meta file has no tou: lines
+            text = ''.join(ln for ln in f if not ln.startswith('tou:'))
+        with open(config.META_FILE, 'w', encoding='utf-8') as f:
+            f.write(text)
+        m3 = MetaState()
+        m3.load()
+        self.assertEqual(m3.tournaments['normal'], 0, 'old meta files simply have no tournament yet')
+        self.assertEqual(m2.achievements, m3.achievements, 'achievements must survive untouched')
+
     def test_endings(self):
         s, e = self.s, self.e
         s.mental = 0

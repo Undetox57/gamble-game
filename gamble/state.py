@@ -19,7 +19,8 @@ class GameState:
                  'streaks_done', 'best_win', 'worst_loss', 'last_therapy_day',
                  'sb_stake', 'sb_target', 'sb_count',   # the streak side bet (0 = none)
                  'worked_days',                         # career tenure (C3): days worked in this run
-                 'shark_debt', 'shark_due']             # loan shark: owed TL and the day he comes to collect
+                 'shark_debt', 'shark_due',           # loan shark: owed TL and the day he comes to collect
+                 'tour_active', 'tour_day', 'tour_net']  # tournament: running?, day it started, net worth then
 
     def __init__(self):
         self.set_defaults()
@@ -207,6 +208,7 @@ class MetaState:
         self.achievements = set()
         self.endings = set()
         self.records = {k: 0 for k in DIFFICULTIES}   # best net worth ever reached on each difficulty
+        self.tournaments = {k: 0 for k in DIFFICULTIES}   # best tournament result on each difficulty
 
     def record(self, difficulty, net_worth):
         """Remember the best net worth of a difficulty. Returns True when it is a new best."""
@@ -216,6 +218,16 @@ class MetaState:
         if value <= self.records[difficulty]:
             return False
         self.records[difficulty] = value
+        return True
+
+    def record_tournament(self, difficulty, score):
+        """Remember the best tournament score of a difficulty. Returns True when it is a new best."""
+        if difficulty not in self.tournaments:
+            return False
+        value = int(score)
+        if value <= self.tournaments[difficulty]:
+            return False
+        self.tournaments[difficulty] = value
         return True
 
     def load(self):
@@ -235,6 +247,13 @@ class MetaState:
                                     self.records[diff] = max(self.records[diff], int(float(val)))
                                 except ValueError:
                                     pass
+                        elif kind == 'tou':                  # tou:<difficulty>:<best tournament score>
+                            diff, _, val = key.partition(':')
+                            if diff in DIFFICULTIES:
+                                try:
+                                    self.tournaments[diff] = max(self.tournaments[diff], int(float(val)))
+                                except ValueError:
+                                    pass
         except Exception:
             pass
 
@@ -248,5 +267,8 @@ class MetaState:
                 for k in sorted(self.records):
                     if self.records[k]:
                         f.write(f'rec:{k}:{self.records[k]}\n')
+                for k in sorted(self.tournaments):
+                    if self.tournaments[k]:
+                        f.write(f'tou:{k}:{self.tournaments[k]}\n')
         except Exception:
             pass

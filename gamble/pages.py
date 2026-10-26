@@ -10,7 +10,8 @@ from . import rules
 from .config import (ACHIEVEMENTS, BANK_INTEREST, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET, DIFFICULTIES, ENDINGS,
                      GAME_HOTKEYS, GAME_KEYS, GAME_NAMES, GAME_SUBTITLES, ITEMS, JOBS, LEVEL_EXP, LOBBY_ORDER,
                      MAX_BET, SHARK_CLEAN, SHARK_COLLECT_MENTAL, SHARK_COLLECT_SHARE, SHARK_DAYS,
-                     SHARK_RATE, STREAK_BETS, STREAK_P_MAX, TENURE_RANKS, UNLOCK)
+                     SHARK_RATE, STREAK_BETS, STREAK_P_MAX, TENURE_RANKS, TOURNAMENT_BONUS_RATE,
+                     TOURNAMENT_DAYS, TOURNAMENT_ENTRY, UNLOCK)
 from .widgets import AC, Button, LineChart, back_button, clear_layout, page_title, section
 
 
@@ -356,7 +357,8 @@ class StatsPage(QWidget):
         self.bets.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         lay.addWidget(self.bets, 2)
         lay.addWidget(section('BEST RUNS  (kept across runs and resets)'))
-        self.board = make_table(['Difficulty', 'Best net worth ever', 'This run'], len(DIFFICULTIES))
+        self.board = make_table(['Difficulty', 'Best net worth ever', 'This run', 'Best tournament'],
+                                len(DIFFICULTIES))
         lay.addWidget(self.board, 0)
         lay.addWidget(section('THIS SESSION'))
         self.session_lbl = QLabel('-')
@@ -413,12 +415,15 @@ class StatsPage(QWidget):
             put(self.bets, r, 1, f'{d:+,}', color, AC)
         # per-difficulty records from the meta file: the best wallet ever seen on each difficulty
         records = getattr(self.app.meta, 'records', {})
+        tours = getattr(self.app.meta, 'tournaments', {})
         for r, key in enumerate(DIFFICULTIES):
             best, mine = records.get(key, 0), key == s.difficulty
             put(self.board, r, 0, DIFFICULTIES[key]['name'] + ('  ◀ current' if mine else ''), gold if mine else None,
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             put(self.board, r, 1, f'{best:,}' if best else '-', gold if best else muted, AC)
             put(self.board, r, 2, f'{s.net_worth:,}' if mine else '-', muted if mine else None, AC)
+            tour = tours.get(key, 0)
+            put(self.board, r, 3, f'{tour:+,}' if tour else '-', gold if tour else muted, AC)
         ses = getattr(self.app, 'session', None)
         if ses:
             minutes = max(0, round((time.time() - ses['start']) / 60))
@@ -496,6 +501,13 @@ and he gives you exactly {SHARK_DAYS} days. When the day comes he takes {SHARK_C
 your wallet and costs you {abs(SHARK_COLLECT_MENTAL)} mental health, then {SHARK_DAYS} more days are added to the clock.
 The one favour he does you: while you owe him, he cleans black money for free, so every win pays
 {SHARK_CLEAN * 100:.0f}% extra. Owe him three times your ceiling and that is the end of the run.</p>
+{h('Tournament')}
+<p>The <b>Tournament</b> panel in the lobby runs a {TOURNAMENT_DAYS}-day race against <b>your own net worth</b>:
+you pay a {TOURNAMENT_ENTRY:,} TL entry fee up front and it is held for the whole window, so it never counts
+against your score. Finish at a higher net worth than you started and the entry comes back plus
+{TOURNAMENT_BONUS_RATE * 100:.0f}% of your growth (capped); finish behind and the fee is gone. Only one
+tournament can run at a time, and the best result of every difficulty is kept in <b>Statistics</b> across
+runs and resets.</p>
 {h('Shop')}
 <ul>{items}</ul>
 {h('Random events')}
