@@ -3,6 +3,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QCheckBox, QComboBox, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout
 
 from .config import ACHIEVEMENTS, DIFFICULTIES, ENDINGS
+from .i18n import LANGUAGES, current, tr, txf
 from .style import ANIM_SPEEDS, CARD_SIZES, DEFAULT_KEYS, KEY_NAMES, TEXT_SCALES, THEMES
 from .widgets import Button, page_title, section
 
@@ -57,14 +58,14 @@ class EventDialog(QDialog):
     def __init__(self, parent, ev, state):
         super().__init__(parent)
         self.choice = None
-        self.setWindowTitle('Random event')
+        self.setWindowTitle(tr('Random event'))
         self.setModal(True)
         self.setMinimumWidth(480)
         self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(12)
-        lay.addWidget(section('🎲  RANDOM EVENT'))
+        lay.addWidget(section(tr('🎲  RANDOM EVENT')))
         lay.addWidget(page_title(ev['title']))
         txt = QLabel(ev['text'])
         txt.setObjectName('prompt')
@@ -75,7 +76,7 @@ class EventDialog(QDialog):
             b.setMinimumHeight(44)
             if enabled and not enabled(state):
                 b.setEnabled(False)
-                b.setToolTip('You cannot afford this.')
+                b.setToolTip(tr('You cannot afford this.'))
             b.clicked.connect(lambda _=False, i=i: self.pick(i))
             lay.addWidget(b)
 
@@ -92,7 +93,7 @@ class EndingDialog(QDialog):
         super().__init__(parent)
         title, kind, text = ENDINGS[key]
         self.start_over = kind == 'bad'
-        self.setWindowTitle('Ending')
+        self.setWindowTitle(tr('Ending'))
         self.setModal(True)
         self.setMinimumWidth(540)
         self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
@@ -101,7 +102,7 @@ class EndingDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(26, 22, 26, 22)
         lay.setSpacing(12)
-        tag = QLabel(f'{icon}  {kind.upper()} ENDING')
+        tag = QLabel(f'{icon}  ' + tr(kind.upper() + ' ENDING'))   # GOOD ENDING -> İYİ SONUÇ
         tag.setObjectName('section')
         tag.setStyleSheet(f'color:{color};')
         lay.addWidget(tag)
@@ -112,19 +113,21 @@ class EndingDialog(QDialog):
         body.setObjectName('prompt')
         body.setWordWrap(True)
         lay.addWidget(body)
-        summary = QLabel(f'Day {state.day}  •  Level {state.level}  •  Net worth {state.net_worth:,} TL  •  '
-                         f'Mental health {state.mental}/100\n'
-                         f'Achievements {len(meta.achievements)}/{len(ACHIEVEMENTS)}  •  '
-                         f'Endings found {len(meta.endings)}/{len(ENDINGS)}')
+        summary = QLabel(
+            txf('Day {d}  •  Level {l}  •  Net worth {n} TL  •  Mental health {m}/100', d=state.day,
+                l=state.level, n=f'{state.net_worth:,}', m=state.mental) + '\n'
+            + txf('Achievements {a}/{b}  •  Endings found {c}/{e}',
+                  a=len(meta.achievements), b=len(ACHIEVEMENTS),
+                  c=len(meta.endings), e=len(ENDINGS)))
         summary.setObjectName('hint')
         lay.addWidget(summary)
         row = QHBoxLayout()
         if kind != 'bad':
-            keep = Button('Keep playing')
+            keep = Button(tr('Keep playing'))
             keep.setObjectName('primary')
             keep.clicked.connect(self.accept)
             row.addWidget(keep)
-        new = Button('Start a new game')
+        new = Button(tr('Start a new game'))
         if kind == 'bad':
             new.setObjectName('primary')
         new.clicked.connect(self.new_game)
@@ -145,19 +148,20 @@ class SettingsDialog(QDialog):
     def __init__(self, win):
         super().__init__(win)
         self.win = win
-        self.setWindowTitle('Settings')
+        self.setWindowTitle(tr('Settings'))
         self.setModal(True)
         self.setMinimumWidth(480)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(12)
-        lay.addWidget(page_title('Settings'))
-        lay.addWidget(section('DISPLAY'))
+        lay.addWidget(page_title(tr('Settings')))
+        lay.addWidget(section(tr('DISPLAY')))
         grid = QGridLayout()
         grid.setHorizontalSpacing(18)
         grid.setVerticalSpacing(12)
-        self.fs = QCheckBox('Fullscreen  (F11, Esc to leave)')
+        self.fs = QCheckBox(tr('Fullscreen  (F11, Esc to leave)'))
         self.theme, self.text, self.anim, self.cards = QComboBox(), QComboBox(), QComboBox(), QComboBox()
+        self.lang = QComboBox()                          # D9: interface language
         for k, (name, _) in THEMES.items():
             self.theme.addItem(name, k)
         for k, (name, _) in TEXT_SCALES.items():
@@ -166,21 +170,24 @@ class SettingsDialog(QDialog):
             self.anim.addItem(name, k)
         for k, (name, _size) in CARD_SIZES.items():
             self.cards.addItem(f'{name} cards', k)
-        self.effects = QCheckBox('Visual effects (confetti, floating numbers)')
-        self.sound = QCheckBox('Sound effects (wins, losses, jackpots)')
-        self.log = QCheckBox('Show message log')
+        for k, name in LANGUAGES.items():
+            self.lang.addItem(name, k)
+        self.effects = QCheckBox(tr('Visual effects (confetti, floating numbers)'))
+        self.sound = QCheckBox(tr('Sound effects (wins, losses, jackpots)'))
+        self.log = QCheckBox(tr('Show message log'))
         grid.addWidget(self.fs, 0, 0, 1, 2)
-        for row, (label, w) in enumerate((('Theme', self.theme), ('Text size', self.text),
-                                          ('Animation speed', self.anim), ('Card size', self.cards)), start=1):
+        for row, (label, w) in enumerate(((tr('Theme'), self.theme), (tr('Text size'), self.text),
+                                          (tr('Animation speed'), self.anim), (tr('Card size'), self.cards),
+                                          (tr('Language'), self.lang)), start=1):
             grid.addWidget(QLabel(label), row, 0)
             grid.addWidget(w, row, 1)
-        grid.addWidget(self.effects, 5, 0, 1, 2)
-        grid.addWidget(self.sound, 6, 0, 1, 2)
-        grid.addWidget(self.log, 7, 0, 1, 2)
+        grid.addWidget(self.effects, 6, 0, 1, 2)
+        grid.addWidget(self.sound, 7, 0, 1, 2)
+        grid.addWidget(self.log, 8, 0, 1, 2)
         lay.addLayout(grid)
-        lay.addWidget(section('KEYBOARD'))
+        lay.addWidget(section(tr('KEYBOARD')))
         keys_row = QHBoxLayout()
-        keys_btn = Button('Change key bindings...')
+        keys_btn = Button(tr('Change key bindings...'))
         keys_btn.clicked.connect(self.keybindings)
         self.keys_lbl = QLabel()
         self.keys_lbl.setObjectName('hint')
@@ -189,9 +196,9 @@ class SettingsDialog(QDialog):
         keys_row.addWidget(self.keys_lbl, 1)
         lay.addLayout(keys_row)
         row = QHBoxLayout()
-        restore = Button('Restore defaults')
+        restore = Button(tr('Restore defaults'))
         restore.clicked.connect(self.restore)
-        close = Button('Close')
+        close = Button(tr('Close'))
         close.setObjectName('primary')
         close.clicked.connect(self.accept)
         row.addWidget(restore)
@@ -202,12 +209,13 @@ class SettingsDialog(QDialog):
         self.load_values()
         for c in (self.fs, self.effects, self.sound, self.log):
             c.toggled.connect(self.changed)
-        for c in (self.theme, self.text, self.anim, self.cards):
+        for c in (self.theme, self.text, self.anim, self.cards, self.lang):
             c.currentIndexChanged.connect(self.changed)
 
     def load_values(self):
         st = self.win.settings
-        widgets = (self.fs, self.effects, self.sound, self.log, self.theme, self.text, self.anim, self.cards)
+        widgets = (self.fs, self.effects, self.sound, self.log, self.theme, self.text, self.anim, self.cards,
+                   self.lang)
         for w in widgets:
             w.blockSignals(True)
         self.fs.setChecked(st.fullscreen)
@@ -218,9 +226,10 @@ class SettingsDialog(QDialog):
         self.text.setCurrentIndex(self.text.findData(st.text))
         self.anim.setCurrentIndex(self.anim.findData(st.anim))
         self.cards.setCurrentIndex(self.cards.findData(st.cards))
+        self.lang.setCurrentIndex(self.lang.findData(st.lang))
         for w in widgets:
             w.blockSignals(False)
-        self.keys_lbl.setText('   '.join(f'{KEY_NAMES[a]}: {k}' for a, k in st.keymap().items()))
+        self.keys_lbl.setText('   '.join(f'{tr(KEY_NAMES[a])}: {k}' for a, k in st.keymap().items()))
 
     def changed(self, *_):
         st = self.win.settings
@@ -232,18 +241,27 @@ class SettingsDialog(QDialog):
         st.text = self.text.currentData()
         st.anim = self.anim.currentData()
         st.cards = self.cards.currentData()
-        self.win.apply_settings()
+        st.lang = self.lang.currentData()
+        self.apply()
+
+    def apply(self):
+        """Everything applies live, except the language: rebuilding the window while this dialog
+        is open would leave the dialog itself in the old tongue. It is applied on close."""
+        if self.win.settings.lang == current():
+            self.win.apply_settings()
+        else:
+            self.win.settings.save()
 
     def keybindings(self):
         dlg = KeybindDialog(self.win)
         dlg.exec()
-        self.win.apply_settings()
+        self.apply()                                   # same rule as every other setting
         self.load_values()
 
     def restore(self):
         self.win.settings.reset()
         self.load_values()
-        self.win.apply_settings()
+        self.apply()
 
 
 class KeybindDialog(QDialog):
@@ -254,15 +272,15 @@ class KeybindDialog(QDialog):
         self.win = parent
         self.waiting = None
         self.picked = dict(parent.settings.keymap())
-        self.setWindowTitle('Key bindings')
+        self.setWindowTitle(tr('Key bindings'))
         self.setModal(True)
         self.setMinimumWidth(460)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(10)
-        lay.addWidget(section('KEYBOARD'))
-        note = QLabel('Click a button, then press the key you want. The in-game keys (shown on each '
-                      'button inside a game) are not affected.')
+        lay.addWidget(section(tr('KEYBOARD')))
+        note = QLabel(tr('Click a button, then press the key you want. The in-game keys (shown on each '
+                         'button inside a game) are not affected.'))
         note.setWordWrap(True)
         lay.addWidget(note)
         grid = QGridLayout()
@@ -270,7 +288,7 @@ class KeybindDialog(QDialog):
         grid.setVerticalSpacing(8)
         self.btns = {}
         for i, action in enumerate(DEFAULT_KEYS):
-            grid.addWidget(QLabel(KEY_NAMES[action]), i // 2, (i % 2) * 2)
+            grid.addWidget(QLabel(tr(KEY_NAMES[action])), i // 2, (i % 2) * 2)
             b = Button(self.picked[action])
             b.setMinimumWidth(90)
             b.clicked.connect(lambda _=False, a=action: self.pick(a))
@@ -278,9 +296,9 @@ class KeybindDialog(QDialog):
             self.btns[action] = b
         lay.addLayout(grid)
         row = QHBoxLayout()
-        reset = Button('Restore defaults')
+        reset = Button(tr('Restore defaults'))
         reset.clicked.connect(self.defaults)
-        close = Button('Done')
+        close = Button(tr('Done'))
         close.setObjectName('primary')
         close.clicked.connect(self.accept)
         row.addWidget(reset)
@@ -290,7 +308,7 @@ class KeybindDialog(QDialog):
 
     def pick(self, action):
         self.waiting = action
-        self.btns[action].setText('...press a key')
+        self.btns[action].setText(tr('...press a key'))
         for a, b in self.btns.items():
             b.setEnabled(a == action)
 
@@ -317,7 +335,7 @@ class KeybindDialog(QDialog):
             a = self.waiting
             self.waiting = None
             self.redraw()
-            self.btns[a].setText('(reserved key)')
+            self.btns[a].setText(tr('(reserved key)'))
             return
         if name:
             taken = [a for a, k in self.picked.items() if k == name and a != self.waiting]
@@ -341,16 +359,16 @@ class NewGameDialog(QDialog):
     def __init__(self, parent, first_time=False):
         super().__init__(parent)
         self.choice = 'normal'
-        self.setWindowTitle('New game')
+        self.setWindowTitle(tr('New game'))
         self.setModal(True)
         self.setMinimumWidth(560)
         self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(26, 22, 26, 22)
         lay.setSpacing(12)
-        lay.addWidget(section('WELCOME' if first_time else 'NEW GAME'))
-        lay.addWidget(page_title('Choose your difficulty'))
-        note = QLabel('Your achievements and the endings you have found are kept between games.')
+        lay.addWidget(section(tr('WELCOME') if first_time else tr('NEW GAME')))
+        lay.addWidget(page_title(tr('Choose your difficulty')))
+        note = QLabel(tr('Your achievements and the endings you have found are kept between games.'))
         note.setWordWrap(True)
         lay.addWidget(note)
         for key, d in DIFFICULTIES.items():
@@ -360,11 +378,11 @@ class NewGameDialog(QDialog):
             dot = QLabel('●')
             dot.setStyleSheet(f"color:{ {'easy': '#4cc38a', 'normal': '#f4c542', 'hard': '#ff6b6b'}[key] };"
                               'font-size:18px;')
-            text = QLabel(f"<b style='font-size:16px'>{d['name']}</b><br>{d['desc']}")
+            text = QLabel(f"<b style='font-size:16px'>{tr(d['name'])}</b><br>{d['desc']}")
             text.setWordWrap(True)
             hl.addWidget(dot)
             hl.addWidget(text, 1)
-            b = Button(f"Play {d['name']}")
+            b = Button(txf('Play {n}', n=tr(d['name'])))
             b.setMinimumWidth(130)
             if key == 'normal':
                 b.setObjectName('primary')

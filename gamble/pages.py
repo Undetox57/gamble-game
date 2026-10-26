@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (QAbstractItemView, QFrame, QHBoxLayout, QHeaderView
                              QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import rules
+from .i18n import current, tr, txf
 from .config import (ACHIEVEMENTS, BANK_INTEREST, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET, DIFFICULTIES, ENDINGS,
                      GAME_HOTKEYS, GAME_KEYS, GAME_NAMES, GAME_SUBTITLES, ITEMS, JOBS, LEVEL_EXP, LOBBY_ORDER,
                      MAX_BET, SHARK_CLEAN, SHARK_COLLECT_MENTAL, SHARK_COLLECT_SHARE, SHARK_DAYS,
@@ -66,8 +67,8 @@ class BankPage(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(8)
-        lay.addWidget(page_title('🏦  Bank & Loans'))
-        lay.addWidget(section('SAVINGS'))
+        lay.addWidget(page_title(tr('🏦  Bank & Loans')))
+        lay.addWidget(section(tr('SAVINGS')))
         panel = QFrame()
         panel.setObjectName('panel')
         pl = QVBoxLayout(panel)
@@ -77,18 +78,18 @@ class BankPage(QWidget):
         pl.addWidget(self.info)
         self.interest_info = QLabel()
         pl.addWidget(self.interest_info)
-        self.dep_spin, self.dep_btn = QSpinBox(), Button('Deposit to bank')
+        self.dep_spin, self.dep_btn = QSpinBox(), Button(tr('Deposit to bank'))
         self.dep_btn.setObjectName('primary')
         self.dep_btn.clicked.connect(lambda: self.act(self.app.engine.deposit, self.dep_spin.value()))
-        self.wd_spin, self.wd_btn = QSpinBox(), Button('Withdraw from bank')
+        self.wd_spin, self.wd_btn = QSpinBox(), Button(tr('Withdraw from bank'))
         self.wd_btn.clicked.connect(lambda: self.act(self.app.engine.withdraw, self.wd_spin.value()))
-        self.wd_all = Button('Withdraw all')
+        self.wd_all = Button(tr('Withdraw all'))
         self.wd_all.clicked.connect(lambda: self.act(self.app.engine.withdraw, int(self.app.state.bank)))
         pl.addLayout(amount_row(self.dep_spin, self.dep_btn))
         pl.addLayout(amount_row(self.wd_spin, self.wd_btn, self.wd_all))
         lay.addWidget(panel)
 
-        lay.addWidget(section('LOANS'))
+        lay.addWidget(section(tr('LOANS')))
         loan = QFrame()
         loan.setObjectName('panel')
         ll = QVBoxLayout(loan)
@@ -97,18 +98,18 @@ class BankPage(QWidget):
         self.loan_info.setObjectName('prompt')
         self.loan_info.setWordWrap(True)
         ll.addWidget(self.loan_info)
-        self.borrow_spin, self.borrow_btn = QSpinBox(), Button('Borrow')
+        self.borrow_spin, self.borrow_btn = QSpinBox(), Button(tr('Borrow'))
         self.borrow_btn.setObjectName('primary')
         self.borrow_btn.clicked.connect(lambda: self.act(self.app.engine.borrow, self.borrow_spin.value()))
-        self.repay_spin, self.repay_btn = QSpinBox(), Button('Repay')
+        self.repay_spin, self.repay_btn = QSpinBox(), Button(tr('Repay'))
         self.repay_btn.clicked.connect(lambda: self.act(self.app.engine.repay, self.repay_spin.value()))
-        self.repay_all = Button('Repay all')
+        self.repay_all = Button(tr('Repay all'))
         self.repay_all.clicked.connect(self.do_repay_all)
         ll.addLayout(amount_row(self.borrow_spin, self.borrow_btn))
         ll.addLayout(amount_row(self.repay_spin, self.repay_btn, self.repay_all))
         lay.addWidget(loan)
 
-        lay.addWidget(section('LOAN SHARK  (black money)'))
+        lay.addWidget(section(tr('LOAN SHARK  (black money)')))
         shark = QFrame()
         shark.setObjectName('panel')
         sl = QVBoxLayout(shark)
@@ -117,12 +118,12 @@ class BankPage(QWidget):
         self.shark_info.setObjectName('prompt')
         self.shark_info.setWordWrap(True)
         sl.addWidget(self.shark_info)
-        self.shark_spin, self.shark_btn = QSpinBox(), Button('Take from the shark')
+        self.shark_spin, self.shark_btn = QSpinBox(), Button(tr('Take from the shark'))
         self.shark_btn.clicked.connect(lambda: self.act(self.app.engine.shark_borrow, self.shark_spin.value()))
-        self.shark_pay_spin, self.shark_pay_btn = QSpinBox(), Button('Pay the shark')
+        self.shark_pay_spin, self.shark_pay_btn = QSpinBox(), Button(tr('Pay the shark'))
         self.shark_pay_btn.setObjectName('primary')
         self.shark_pay_btn.clicked.connect(lambda: self.act(self.app.engine.shark_pay, self.shark_pay_spin.value()))
-        self.shark_pay_all = Button('Pay him everything')
+        self.shark_pay_all = Button(tr('Pay him everything'))
         self.shark_pay_all.clicked.connect(self.do_pay_shark_all)
         sl.addLayout(amount_row(self.shark_spin, self.shark_btn))
         sl.addLayout(amount_row(self.shark_pay_spin, self.shark_pay_btn, self.shark_pay_all))
@@ -144,9 +145,10 @@ class BankPage(QWidget):
 
     def refresh(self):
         s = self.app.state
-        self.info.setText(f'Wallet: {s.balance:,} TL        Bank: {s.bank:,.2f} TL')
-        self.interest_info.setText(f'Your bank balance earns {BANK_INTEREST * 100:.0f}% interest every day '
-                                   f'(max {s.bank_interest_cap:,} TL per day at your level).')
+        self.info.setText(txf('Wallet: {w} TL        Bank: {b} TL', w=f'{s.balance:,}', b=f'{s.bank:,.2f}'))
+        self.interest_info.setText(
+            txf('Your bank balance earns {p}% interest every day (max {m} TL per day at your level).',
+                p=f'{BANK_INTEREST * 100:.0f}', m=f'{s.bank_interest_cap:,}'))
         self.dep_spin.setRange(1, max(1, min(s.balance, 2_000_000_000)))
         self.dep_btn.setEnabled(s.balance >= 1)
         wmax = int(s.bank)
@@ -154,9 +156,10 @@ class BankPage(QWidget):
         self.wd_btn.setEnabled(wmax >= 1)
         self.wd_all.setEnabled(wmax >= 1)
         self.loan_info.setText(
-            f'Debt: {s.debt:,} TL        Credit available: {s.credit_available:,} TL\n'
-            f'Credit limit: {s.credit_limit:,} TL ({s.diff["credit_per_level"]} TL per level)  •  '
-            f'Interest: {s.debt_rate * 100:.0f}% of your debt every day.')
+            txf('Debt: {d} TL        Credit available: {c} TL\n'
+                'Credit limit: {l} TL ({g} TL per level)  •  Interest: {i}% of your debt every day.',
+                d=f'{s.debt:,}', c=f'{s.credit_available:,}', l=f'{s.credit_limit:,}',
+                g=s.diff["credit_per_level"], i=f'{s.debt_rate * 100:.0f}'))
         self.borrow_spin.setRange(1, max(1, min(s.credit_available, 2_000_000_000)))
         self.borrow_btn.setEnabled(s.credit_available >= 1)
         rmax = min(s.balance, s.debt)
@@ -166,17 +169,20 @@ class BankPage(QWidget):
         owed, room = s.shark_debt, max(0, s.shark_limit - s.shark_debt)
         if owed > 0:
             left = max(0, s.shark_due - s.day)
+            when = tr('today') if left == 0 else txf('in {n} day(s)', n=left)
             self.shark_info.setText(
-                f'You owe the shark {owed:,} TL.  {SHARK_RATE * 100:.0f}% interest every day, and he collects '
-                f'{"today" if left == 0 else f"in {left} day(s)"} (day {s.shark_due}).\n'
-                f'He takes {SHARK_COLLECT_SHARE * 100:.0f}% of your wallet when the day comes '
-                f'(-{abs(SHARK_COLLECT_MENTAL)} mental health). While you owe him, your wins come back '
-                f'{SHARK_CLEAN * 100:.0f}% heavier - he cleans them for you.')
+                txf('You owe the shark {o} TL.  {r}% interest every day, and he collects {when} '
+                    '(day {d}).\nHe takes {s}% of your wallet when the day comes ({m} mental health). '
+                    'While you owe him, your wins come back {c}% heavier - he cleans them for you.',
+                    o=f'{owed:,}', r=f'{SHARK_RATE * 100:.0f}', when=when, d=s.shark_due,
+                    s=f'{SHARK_COLLECT_SHARE * 100:.0f}', m=f'-{abs(SHARK_COLLECT_MENTAL)}',
+                    c=f'{SHARK_CLEAN * 100:.0f}'))
         else:
             self.shark_info.setText(
-                f'No dealings with the shark. He lends up to {s.shark_limit:,} TL at your level, '
-                f'{SHARK_RATE * 100:.0f}% a day, collected after {SHARK_DAYS} days. '
-                f'While you owe him he cleans {SHARK_CLEAN * 100:.0f}% extra out of every win.')
+                txf('No dealings with the shark. He lends up to {l} TL at your level, {r}% a day, '
+                    'collected after {d} days. While you owe him he cleans {c}% extra out of every win.',
+                    l=f'{s.shark_limit:,}', r=f'{SHARK_RATE * 100:.0f}', d=SHARK_DAYS,
+                    c=f'{SHARK_CLEAN * 100:.0f}'))
         self.shark_spin.setRange(1, max(1, min(room, 2_000_000_000)))
         self.shark_btn.setEnabled(room >= 1)
         smax = min(s.balance, s.shark_debt)
@@ -192,8 +198,9 @@ class JobsPage(QWidget):
         self.app = app
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(page_title('💼  Jobs'))
-        lay.addWidget(QLabel('Better jobs unlock as you level up. Changing jobs resets your work streak.'))
+        lay.addWidget(page_title(tr('💼  Jobs')))
+        lay.addWidget(QLabel(tr('Better jobs unlock as you level up. Changing jobs resets your work '
+                                'streak.')))
         self.rows = QVBoxLayout()
         self.rows.setSpacing(8)
         lay.addLayout(self.rows)
@@ -209,18 +216,20 @@ class JobsPage(QWidget):
             row.setObjectName('panel')
             hl = QHBoxLayout(row)
             info = QLabel(f"<b style='font-size:16px'>{j['name']}</b><br>"
-                          f"{round(j['pay'] * factor)} TL/day  •  +{j['exp']} exp/day  •  "
-                          f"7-day bonus {round(j['bonus'] * factor)} TL  •  stress -{j['stress']} mental after 7 days")
+                          + txf('{p} TL/day  •  +{e} exp/day  •  7-day bonus {b} TL  •  '
+                                'stress -{s} mental after 7 days',
+                                p=round(j['pay'] * factor), e=j['exp'],
+                                b=round(j['bonus'] * factor), s=j['stress']))
             hl.addWidget(info, 1)
             if s.job == j['key']:
-                b = Button('Current job')
+                b = Button(tr('Current job'))
                 b.setEnabled(False)
             elif s.level >= j['level']:
-                b = Button('Take this job')
+                b = Button(tr('Take this job'))
                 b.setObjectName('primary')
                 b.clicked.connect(lambda _=False, k=j['key']: self.take(k))
             else:
-                b = Button(f"Requires level {j['level']}")
+                b = Button(txf('Requires level {n}', n=j['level']))
                 b.setEnabled(False)
             b.setMinimumWidth(150)
             hl.addWidget(b)
@@ -239,7 +248,7 @@ class ShopPage(QWidget):
         self.app = app
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(page_title('🛒  Shop'))
+        lay.addWidget(page_title(tr('🛒  Shop')))
         self.info = QLabel()
         self.info.setObjectName('prompt')
         lay.addWidget(self.info)
@@ -256,10 +265,11 @@ class ShopPage(QWidget):
 
     def refresh(self):
         s, eng = self.app.state, self.app.engine
-        self.info.setText(f'Wallet: {s.balance:,} TL        Prices on {s.diff["name"]}: '
-                          f'{s.diff["shop_mult"]:.2f}× the normal price')
+        self.info.setText(txf('Wallet: {w} TL        Prices on {d}: {m:.2f}× the normal price',
+                              w=f'{s.balance:,}', d=s.diff["name"], m=s.diff["shop_mult"]))
         clear_layout(self.rows)
-        kinds = {'service': 'Use right away', 'consumable': 'Used automatically', 'permanent': 'Permanent upgrade'}
+        kinds = {'service': tr('Use right away'), 'consumable': tr('Used automatically'),
+                 'permanent': tr('Permanent upgrade')}
         for item in ITEMS:
             key = item['key']
             row = QFrame()
@@ -277,8 +287,8 @@ class ShopPage(QWidget):
             ok, reason = eng.item_status(key)
             stock = s.items.get(key, 0)
             if item['kind'] == 'consumable' and stock:
-                hl.addWidget(QLabel(f'In stock: {stock}'))
-            b = Button('Buy' if ok else reason)
+                hl.addWidget(QLabel(txf('In stock: {n}', n=stock)))
+            b = Button(tr('Buy') if ok else tr(reason))
             b.setEnabled(ok)
             if ok:
                 b.setObjectName('primary')
@@ -301,15 +311,16 @@ class AchievementsPage(QWidget):
         self.app = app
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(page_title('🏆  Achievements & Endings'))
+        lay.addWidget(page_title(tr('🏆  Achievements & Endings')))
         self.ach_label = section('')
         lay.addWidget(self.ach_label)
-        self.ach_table = make_table(['', 'Achievement', 'Description', 'Reward'], len(ACHIEVEMENTS))
+        self.ach_table = make_table(['', tr('Achievement'), tr('Description'), tr('Reward')],
+                                    len(ACHIEVEMENTS))
         self.ach_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         lay.addWidget(self.ach_table, 3)
         self.end_label = section('')
         lay.addWidget(self.end_label)
-        self.end_table = make_table(['', 'Ending', 'Type'], len(ENDINGS))
+        self.end_table = make_table(['', tr('Ending'), tr('Type')], len(ENDINGS))
         self.end_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         lay.addWidget(self.end_table, 2)
         lay.addWidget(back_button(app), 0, Qt.AlignmentFlag.AlignLeft)
@@ -317,22 +328,23 @@ class AchievementsPage(QWidget):
     def refresh(self):
         meta = self.app.meta
         text = self.app.settings.text
-        self.ach_label.setText(f'ACHIEVEMENTS  {len(meta.achievements)}/{len(ACHIEVEMENTS)}')
+        self.ach_label.setText(txf('ACHIEVEMENTS  {a}/{b}', a=len(meta.achievements), b=len(ACHIEVEMENTS)))
         for r, (k, title, desc, reward) in enumerate(ACHIEVEMENTS):
             got = k in meta.achievements
             col = '#4cc38a' if got else '#7a8299'
             put(self.ach_table, r, 0, '✓' if got else '·', col)
-            put(self.ach_table, r, 1, title, col)
-            put(self.ach_table, r, 2, desc, col)
-            put(self.ach_table, r, 3, f'+{reward} exp' if reward else '-', col)
-        self.end_label.setText(f'ENDINGS  {len(meta.endings)}/{len(ENDINGS)}')
+            put(self.ach_table, r, 1, tr(title), col)
+            put(self.ach_table, r, 2, tr(desc), col)
+            put(self.ach_table, r, 3, txf('+{n} exp', n=reward) if reward else '-', col)
+        self.end_label.setText(txf('ENDINGS  {a}/{b}', a=len(meta.endings), b=len(ENDINGS)))
         kinds = {'good': '#4cc38a', 'neutral': '#f4c542', 'bad': '#ff6b6b'}
         for r, (k, (title, kind, _)) in enumerate(ENDINGS.items()):
+            label = tr(kind.capitalize())
             if k in meta.endings:
-                for c, txt in enumerate(('✓', title, kind.capitalize())):
+                for c, txt in enumerate(('✓', tr(title), label)):
                     put(self.end_table, r, c, txt, kinds[kind])
             else:
-                for c, txt in enumerate(('·', '???', kind.capitalize())):
+                for c, txt in enumerate(('·', '???', label)):
                     put(self.end_table, r, c, txt, '#7a8299')
         fit_height(self.ach_table, text)
         fit_height(self.end_table, text)
@@ -346,11 +358,12 @@ class StatsPage(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(8)
-        lay.addWidget(page_title('📊  Statistics'))
+        lay.addWidget(page_title(tr('📊  Statistics')))
         cards = QHBoxLayout()
         self.cards = {}
-        for key, caption in (('net', 'NET WORTH'), ('day', 'DAY'), ('best', 'BEST WIN'), ('worst', 'WORST LOSS'),
-                             ('profit', 'GAMES PROFIT'), ('diff', 'DIFFICULTY')):
+        for key, caption in (('net', tr('NET WORTH')), ('day', tr('DAY')), ('best', tr('BEST WIN')),
+                             ('worst', tr('WORST LOSS')), ('profit', tr('GAMES PROFIT')),
+                             ('diff', tr('DIFFICULTY'))):
             card = QFrame()
             card.setObjectName('panel')
             cl = QVBoxLayout(card)
@@ -363,22 +376,23 @@ class StatsPage(QWidget):
             cards.addWidget(card)
             self.cards[key] = big
         lay.addLayout(cards)
-        lay.addWidget(section('NET WORTH OVER TIME'))
+        lay.addWidget(section(tr('NET WORTH OVER TIME')))
         self.chart = LineChart()
         lay.addWidget(self.chart, 3)
-        lay.addWidget(section('PER-GAME STATS'))
-        self.table = make_table(['Game', 'Played', 'Won', 'Lost', 'Win rate', 'Profit'], len(GAME_KEYS) + 1)
+        lay.addWidget(section(tr('PER-GAME STATS')))
+        self.table = make_table([tr('Game'), tr('Played'), tr('Won'), tr('Lost'), tr('Win rate'),
+                                 tr('Profit')], len(GAME_KEYS) + 1)
         lay.addWidget(self.table, 4)
-        lay.addWidget(section('LAST 20 BETS'))
-        self.bets = make_table(['Game', 'Result'], 0)          # filled in refresh()
+        lay.addWidget(section(tr('LAST 20 BETS')))
+        self.bets = make_table([tr('Game'), tr('Result')], 0)     # filled in refresh()
         self.bets.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.bets.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         lay.addWidget(self.bets, 2)
-        lay.addWidget(section('BEST RUNS  (kept across runs and resets)'))
-        self.board = make_table(['Difficulty', 'Best net worth ever', 'This run', 'Best tournament'],
-                                len(DIFFICULTIES))
+        lay.addWidget(section(tr('BEST RUNS  (kept across runs and resets)')))
+        self.board = make_table([tr('Difficulty'), tr('Best net worth ever'), tr('This run'),
+                                 tr('Best tournament')], len(DIFFICULTIES))
         lay.addWidget(self.board, 0)
-        lay.addWidget(section('THIS SESSION'))
+        lay.addWidget(section(tr('THIS SESSION')))
         self.session_lbl = QLabel('-')
         self.session_lbl.setWordWrap(True)
         self.session_lbl.setObjectName('itemDesc')
@@ -395,7 +409,7 @@ class StatsPage(QWidget):
         self.cards['worst'].setText(f'{s.worst_loss:,}' if s.worst_loss else '-')
         total_profit = sum(s.profit.values())
         self.cards['profit'].setText(f'{total_profit:+,}')
-        self.cards['diff'].setText(s.diff['name'])
+        self.cards['diff'].setText(tr(s.diff['name']))
         self.cards['best'].setStyleSheet(f'color:{green};' if s.best_win else f'color:{muted};')
         self.cards['worst'].setStyleSheet(f'color:{red};' if s.worst_loss else f'color:{muted};')
         self.cards['profit'].setStyleSheet(
@@ -406,9 +420,9 @@ class StatsPage(QWidget):
         rows = []
         for k in GAME_KEYS:
             st = s.stats[k]
-            rows.append((GAME_NAMES[k], st['played'], st['won'], st['lost'], s.profit.get(k, 0)))
+            rows.append((tr(GAME_NAMES[k]), st['played'], st['won'], st['lost'], s.profit.get(k, 0)))
             tp, tw, tl = tp + st['played'], tw + st['won'], tl + st['lost']
-        rows.append(('TOTAL', tp, tw, tl, total_profit))
+        rows.append((tr('TOTAL'), tp, tw, tl, total_profit))
         for r, (name, p, w, l, prof) in enumerate(rows):
             rate = f'{w / p * 100:.0f}%' if p else '-'
             color = '#4cc38a' if prof > 0 else '#ff6b6b' if prof < 0 else None
@@ -427,12 +441,12 @@ class StatsPage(QWidget):
         fit_height(self.table, text)                   # taller rows when the display text is enlarged
         fit_height(self.board, text)
         if not bets:
-            put(self.bets, 0, 0, 'No rounds played yet in this run.', None,
+            put(self.bets, 0, 0, tr('No rounds played yet in this run.'), None,
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             put(self.bets, 0, 1, '-')
         for r, (k, d) in enumerate(reversed(bets)):
             color = green if d > 0 else red if d < 0 else muted
-            put(self.bets, r, 0, GAME_NAMES.get(k, k), None,
+            put(self.bets, r, 0, tr(GAME_NAMES.get(k, k)), None,
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             put(self.bets, r, 1, f'{d:+,}', color, AC)
         # per-difficulty records from the meta file: the best wallet ever seen on each difficulty
@@ -440,7 +454,8 @@ class StatsPage(QWidget):
         tours = getattr(self.app.meta, 'tournaments', {})
         for r, key in enumerate(DIFFICULTIES):
             best, mine = records.get(key, 0), key == s.difficulty
-            put(self.board, r, 0, DIFFICULTIES[key]['name'] + ('  ◀ current' if mine else ''), gold if mine else None,
+            put(self.board, r, 0, tr(DIFFICULTIES[key]['name']) + ('  ◀ ' + tr('current') if mine else ''),
+                gold if mine else None,
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             put(self.board, r, 1, f'{best:,}' if best else '-', gold if best else muted, AC)
             put(self.board, r, 2, f'{s.net_worth:,}' if mine else '-', muted if mine else None, AC)
@@ -450,13 +465,19 @@ class StatsPage(QWidget):
         if ses:
             minutes = max(0, round((time.time() - ses['start']) / 60))
             self.session_lbl.setText(
-                f'{minutes} min  •  {ses["games"]} games  ({ses["wins"]} won, '
-                f'{ses["games"] - ses["wins"]} lost)  •  best round +{ses["best"]:,} TL  •  net worth this '
-                f'session {s.net_worth - ses["net0"]:+,} TL')
+                txf('{m} min  •  {g} games  ({w} won, {l} lost)  •  best round +{b} TL  •  '
+                    'net worth this session {n} TL',
+                    m=minutes, g=ses["games"], w=ses["wins"], l=ses["games"] - ses["wins"],
+                    b=f'{ses["best"]:,}', n=f'{s.net_worth - ses["net0"]:+,}'))
 
 
 # --------------------------------------------------------------------------- how to play
 def help_html(state):
+    """The rule book (D9): English and Turkish are two complete documents."""
+    return help_html_tr(state) if current() == 'tr' else help_html_en(state)
+
+
+def help_html_en(state):
     gold = '#f4c542'
     h = lambda t: f"<h3 style='color:{gold};margin-top:16px;margin-bottom:2px'>{t}</h3>"   # noqa: E731
     edge = state.diff['edge']
@@ -558,6 +579,118 @@ These lobby keys can be changed in <b>Settings → Change key bindings</b>; the 
 <li>Work and the shop are how you grow. Gambling is how you lose it, or occasionally win big.</li>
 <li>Borrowed money is only worth it for something that pays back more than {state.diff['debt_rate'] * 100:.0f}% a day.</li>
 <li>Your achievements and the endings you have found are kept when you start a new game.</li>
+</ul>
+"""
+
+
+def help_html_tr(state):
+    """Kural kitabı - Türkçe (D9). Aynı bölüm sırası, aynı sayılar: help_html_en ile birebir."""
+    gold = '#f4c542'
+    h = lambda t: f"<h3 style='color:{gold};margin-top:16px;margin-bottom:2px'>{t}</h3>"   # noqa: E731
+    edge = state.diff['edge']
+
+    def rtp_cell(k):                                  # D8: ortalama olarak ne kadar geri ödüyor
+        if k == 'plinko':                             # risk seçimine bağlı olan tek oyun
+            lo, hi = rules.plinko_rtp('low'), rules.plinko_rtp('high')
+            return f'{min(lo, hi) * 100:.0f}–{max(lo, hi) * 100:.0f}%'
+        return f'{rules.game_rtp(k, edge) * 100:.0f}%'
+
+    games = ''.join(
+        f"<tr><td><b>{GAME_NAMES[k]}</b></td><td>seviye {UNLOCK[k]}</td><td>{GAME_SUBTITLES[k]}</td>"
+        f"<td>{rtp_cell(k)}</td><td>{GAME_HOTKEYS[k]}</td></tr>" for k in LOBBY_ORDER)
+    streaks = ''.join(
+        f"<tr><td>{n} art arda</td><td>{m:g}×</td><td>{STREAK_P_MAX ** n * 100:.1f}%</td>"
+        f"<td>100 TL'lik bahis için {int(100 * m * STREAK_P_MAX ** n):,} TL</td></tr>"
+        for n, m in sorted(STREAK_BETS.items()))
+    levels = ''.join(
+        f"<tr><td>{i + 1}</td><td>{e:,} tp</td><td>{'sınırsız' if MAX_BET[i] >= 10 ** 9 else f'{MAX_BET[i]:,} TL'}</td></tr>"
+        for i, e in enumerate(LEVEL_EXP))
+    jobs = ''.join(f"<tr><td><b>{j['name']}</b></td><td>seviye {j['level']}</td><td>{j['pay']} TL/gün</td>"
+                   f"<td>7 günlük prim {j['bonus']} TL</td></tr>" for j in JOBS)
+    items = ''.join(f"<li><b>{i['name']}</b> ({i['price']} TL, seviye {i['level']}): {i['desc']}</li>"
+                    for i in ITEMS)
+    diffs = ''.join(f"<li><b>{d['name']}</b>: {d['desc']}</li>" for d in DIFFICULTIES.values())
+    return f"""
+<h2 style='color:{gold}'>Nasıl oynanır</h2>
+<p>Paranız yok, biraz pervasızsınız ve başka bir hayata giden tek şanslı seriden uzaktasınız. Hedefiniz
+<b>{state.goal:,} TL</b> net varlığa (cüzdan + banka − borç − tefeci borcu) ulaşmak: bunu
+<b>{state.diff['name']}</b> zorluğunda yapın. Ya da başka bir çıkış yolu bulun; altı sonuç var.</p>
+{h('Hayatınızdaki bir gün')}
+<ul>
+<li><b>Oyunlar:</b> her oyun gününüzden bir parça götürür. 5 oyun sonunda gün biter.</li>
+<li><b>İş:</b> para ve deneyim için çalışın. 7 gün üst üste çalışana prim var ama bu yorar (3 gün ara).
+Seri ortasında kumar oynarsanız patronunuz seriyi sıfırlar.</li>
+<li><b>Günü Geçir:</b> hiçbir şey yapmayın. O gün hiç oyun oynamadıysanız dinlenir, ruh sağlığınız toparlanır.</li>
+<li><b>Ruh sağlığı:</b> her kayıp biraz götürür. 0'da oyun biter. Sevgiliyle dışarı çıkmak (100 TL) sizi
+7 gün korur.</li>
+<li><b>{CLEAN_TARGET} gün kumarsız</b> kalmak irade ödülü verir. Bunu {CLEAN_STREAKS_FOR_ENDING} kez yaparsanız
+(biraz kumar oynadıktan sonra) başka bir sonla karşılaşabilirsiniz.</li>
+</ul>
+{h('Oyunlar, seviyeler ve kısayollar')}
+<p>Oyunlar seviye atladıkça açılır (deneyim oyun oynamaktan, çalışmaktan, başarılardan ve olaylardan gelir).
+En yüksek bahis seviyenizle birlikte büyür. Neredeyse her oyun koyduğunuzdan az geri öder (kabaca %80-95),
+yani uzun vadede kasa kazanır; sadece yazı tura adildir. Blackjack, Poker, Crash ve risk seçimlerinde
+beceri işe yarar.</p>
+<p><b>RTP</b> sütunu tam olarak budur: 100 TL'lik bahisten bir oyunun ortalama kaç TL geri verdiği -
+sonsuza kadar ortalaması. Crash, Mines ve Hi-Lo zorluğa uyar ({state.diff['name']} %{(1 - edge) * 100:.0f}
+öder), diğerleri her yerde aynı öder. Kolay'da bu üçü %95, Normal'de %92, Zor'da %88 öder.</p>
+<table cellspacing='6'><tr><td><i>Oyun</i></td><td><i>Açılış</i></td><td><i>Ödeme</i></td><td><i>RTP</i></td><td><i>Tuş</i></td></tr>{games}</table>
+{h('Seviyeler')}
+<table cellspacing='6'><tr><td><i>Seviye</i></td><td><i>Gereken</i></td><td><i>En yüksek bahis</i></td></tr>{levels}</table>
+{h('İşler')}
+<table cellspacing='6'>{jobs}</table>
+<p>Her vardiya <b>kıdem</b> sayılır: her rütbe (Acemi → Şirket Efsanesi) koşu boyunca %5 daha fazla
+öder ve güncel rütbeniz yan panelde işinizin altında görünür.</p>
+{h('Banka ve krediler')}
+<p>Birikim günde {BANK_INTEREST * 100:.0f}% kazanır (seviyenizle sınırlı). Krediler seviyenize bağlıdır ve
+{state.diff['name']}'da günde {state.diff['debt_rate'] * 100:.0f}% maliyetlidir. Borcun kredi limitini
+aşırsa ruh sağlığınız zarar görür, çok aşarsa her şeyi kaybedersiniz.</p>
+{h('Tefeci')}
+<p>Banka sayfasında ikinci bir kapı var: <b>tefeci</b>. Kredi kontrolü yok, evrak yok - günde
+{SHARK_RATE * 100:.0f}% borç verir (bankanın faizi bunun yanında hiçbir şey), seviyenizde en fazla
+{state.shark_limit:,} TL ve tam olarak {SHARK_DAYS} gün süre verir. Gün gelince cüzdanınızdaki paranın
+{SHARK_COLLECT_SHARE * 100:.0f}'ini alır ve {abs(SHARK_COLLECT_MENTAL)} ruh sağlığı götürür, sonra
+saate {SHARK_DAYS} gün daha eklenir. Size yaptığı tek iyilik: ona borçluyken kara parayı ücretsiz temizler,
+yani her kazanç {SHARK_CLEAN * 100:.0f}% fazla öder. Borcunuz tavanın üç katına çıkarsa koşu bitmiş demektir.</p>
+{h('Turnuva')}
+<p>Lobideki <b>Turnuva</b> paneli, <b>kendi net varlığınıza</b> karşı {TOURNAMENT_DAYS} günlük bir yarıştır:
+{TOURNAMENT_ENTRY:,} TL giriş parasını peşin ödersiniz ve tüm pencere boyunca elde tutulur, bu yüzden
+skorunuza asla işlenmez. Başladığınızdan daha yüksek net varlıkla bitirirseniz giriş parası geri gelir,
+üstine büyümenizin {TOURNAMENT_BONUS_RATE * 100:.0f}'ü eklenir (üst sınırıyla); geride bitirirseniz para
+yanar. Aynı anda yalnızca bir turnuva olabilir ve her zorluğun en iyi sonucu <b>İstatistikler</b>'te koşular
+ve sıfırlamalar boyunca saklanır.</p>
+{h('Dükkân')}
+<ul>{items}</ul>
+{h('Rastgele olaylar')}
+<p>Yeni günlerin çoğu hiçbir şey getirmez, bazıları bir karar getirir. Kusursuz cevap yok, sadece
+ ödünleşmeler var.</p>
+{h('Zorluk')}
+<ul>{diffs}</ul>
+{h('Seri bahsi')}
+<p>Lobiden, art arda birkaç tek seferlik oyun kazanacağınız üzerine yan bahis oynayabilirsiniz. Bahis
+oynandığında ödenir ve iade edilmez; yalnızca tek seferlik oyunlar sayılır (Crash, Mines ve Hi-Lo ne sayılır
+ne bozar, beraberlik nötrtür). Bir kayıp seriyi bitirir.</p>
+<table cellspacing='6'><tr><td><i>Hedef</i></td><td><i>Öder</i></td><td><i>Şans*</i></td>
+<td><i>Beklenen getiri</i></td></tr>{streaks}</table>
+<p><i>*En iyi ihtimal, her seferinde en güvenli bahsi oynayarak. Oyun size yaklaşık %8 aleyhine fiyatlanmıştır;
+masa oyunlarıyla aynı. Seri Defteri (dükkân) bu oranları canlı gösterir ve devam eden bahsi gerçek
+değerinden paralamanıza izin verir.</i></p>
+{h('Klavye')}
+<ul>
+<li><b>Lobi:</b> yukarıdaki oyun tuşları, <b>W</b> çalış, <b>D</b> günü geçir, <b>O</b> dışarı çık,
+<b>B</b> banka, <b>J</b> işler, <b>S</b> dükkân, <b>T</b> istatistikler, <b>A</b> başarılar, <b>P</b> ayarlar,
+<b>H</b> veya <b>F1</b> bu sayfa. Bu lobi tuşları <b>Ayarlar → Kısayolları değiştir</b> ile değiştirilebilir;
+tuşlar butonlarda görünür.</li>
+<li><b>Oyun içinde:</b> tuş her butonun üstünde yazılır. <b>Space</b> genelde ana işi yapar
+(döndür, dur, çek, parala, tekrar oyna).</li>
+<li><b>Esc</b> geri gider. <b>F11</b> tam ekranı değiştirir. Bahis kutusuna tıklayıp yazın, bitince
+Enter'a basın.</li>
+</ul>
+{h('İpuçları')}
+<ul>
+<li>Büyümek için iş ve dükkân. Kumarla kaybedersiniz, ara sıra büyük kazanırsınız.</li>
+<li>Ödünç para, günde {state.diff['debt_rate'] * 100:.0f}%'den fazla getiren bir şey için değerlidir.</li>
+<li>Başarılarınız ve bulduğunuz sonuçlar yeni oyun başlatırken korunur.</li>
 </ul>
 """
 

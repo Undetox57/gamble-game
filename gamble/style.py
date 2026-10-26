@@ -3,6 +3,7 @@ import os
 import re
 
 from . import config
+from .i18n import LANGUAGES
 
 STYLE = """
 QWidget { color:#e8eaf0; font-family:'Segoe UI','Inter','Segoe UI Emoji','Helvetica Neue',sans-serif; font-size:14px; }
@@ -163,7 +164,8 @@ def build_style(theme='classic', text='normal'):
 class Settings:
     DEFAULTS = {'fullscreen': False, 'theme': 'classic', 'text': 'normal', 'anim': 'normal',
                 'effects': True, 'show_log': True, 'help_seen': False,
-                'sound': True, 'cards': 'normal', 'keys': ''}    # D5 / D7 / D6
+                'sound': True, 'cards': 'normal', 'keys': '',
+                'lang': 'en'}                        # D5 / D7 / D6 / D9 (interface language)
 
     def __init__(self):
         self.reset()
@@ -203,6 +205,8 @@ class Settings:
             self.anim = 'normal'
         if self.cards not in CARD_SIZES:
             self.cards = 'normal'
+        if self.lang not in LANGUAGES:               # old settings files simply have no lang line
+            self.lang = 'en'
 
     def save(self):
         try:

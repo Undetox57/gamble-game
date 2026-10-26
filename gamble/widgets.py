@@ -6,6 +6,7 @@ from PyQt6.QtCore import QPointF, QRectF, Qt, QTimer
 from PyQt6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen, QPolygonF
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
+from .i18n import tr
 from .rules import RED          # noqa: F401  (card colours)
 
 AC = Qt.AlignmentFlag.AlignCenter
@@ -223,7 +224,7 @@ def page_title(text):
 
 
 def back_button(app):
-    b = Button('← Back to lobby')
+    b = Button(tr('← Back to lobby'))
     b.clicked.connect(app.show_lobby)
     return b
 
