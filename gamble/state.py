@@ -42,6 +42,7 @@ class GameState:
         self.games_today = 0
         self.job = 'courier'
         self.difficulty = 'normal'
+        self.tour_mode = 'classic'                      # D12: 'classic' or 'sprint'
         self.items = {}                              # item key -> count (permanent items: 1)
         self.profit = {k: 0 for k in GAME_KEYS}      # net winnings per game in this run
         self.history = [(1, 100)]                    # (day, net worth) for the chart
@@ -166,11 +167,13 @@ class GameState:
                           for k in self.EXTRA_INT}
             job = extras.get('job', 'courier')
             difficulty = extras.get('difficulty', 'normal')
+            tour_mode = extras.get('tour_mode', 'classic')   # old saves have no such line
             self.balance, self.bank, self.stats = balance, bank, stats
             (self.day, self.skipped_days, self.work_streak, self.mental,
              self.out_days, self.exp, self.work_cooldown, self.no_gamble_days) = vals
             self.job = job if job in JOB_BY_KEY else 'courier'
             self.difficulty = difficulty if difficulty in DIFFICULTIES else 'normal'
+            self.tour_mode = tour_mode if tour_mode in ('classic', 'sprint') else 'classic'
             self.items = {k: v for k, v in items.items() if v > 0 and k in config.ITEM_BY_KEY}
             self.profit = profit
             for k, v in extra_ints.items():
@@ -196,7 +199,7 @@ class GameState:
                 for key in self.stats:
                     s = self.stats[key]
                     f.write(f"{key}:{s['played']}:{s['won']}:{s['lost']}\n")
-                f.write(f'x:job:{self.job}\nx:difficulty:{self.difficulty}\n')
+                f.write(f'x:job:{self.job}\nx:difficulty:{self.difficulty}\nx:tour_mode:{self.tour_mode}\n')
                 for k in self.EXTRA_INT:
                     f.write(f'x:{k}:{getattr(self, k)}\n')
                 for k, n in self.items.items():
@@ -221,6 +224,7 @@ class MetaState:
         self.endings = set()
         self.records = {k: 0 for k in DIFFICULTIES}   # best net worth ever reached on each difficulty
         self.tournaments = {k: 0 for k in DIFFICULTIES}   # best tournament result on each difficulty
+        self.sprints = {k: 0 for k in DIFFICULTIES}       # D12: best sprint result on each difficulty
 
     def record(self, difficulty, net_worth):
         """Remember the best net worth of a difficulty. Returns True when it is a new best."""
@@ -240,6 +244,16 @@ class MetaState:
         if value <= self.tournaments[difficulty]:
             return False
         self.tournaments[difficulty] = value
+        return True
+
+    def record_sprint(self, difficulty, score):
+        """D12: the same, for the 3-day sprint (kept apart from the classic record)."""
+        if difficulty not in self.sprints:
+            return False
+        value = int(score)
+        if value <= self.sprints[difficulty]:
+            return False
+        self.sprints[difficulty] = value
         return True
 
     def load(self):
@@ -265,6 +279,10 @@ class MetaState:
                     diff, _, val = key.partition(':')
                     if diff in DIFFICULTIES:
                         self.tournaments[diff] = max(self.tournaments[diff], int(float(val)))
+                elif kind == 'tsp':                  # tsp:<difficulty>:<best sprint score> (D12)
+                    diff, _, val = key.partition(':')
+                    if diff in DIFFICULTIES:
+                        self.sprints[diff] = max(self.sprints[diff], int(float(val)))
             except Exception:
                 continue
 
@@ -281,5 +299,8 @@ class MetaState:
                 for k in sorted(self.tournaments):
                     if self.tournaments[k]:
                         f.write(f'tou:{k}:{self.tournaments[k]}\n')
+                for k in sorted(self.sprints):        # D12
+                    if self.sprints[k]:
+                        f.write(f'tsp:{k}:{self.sprints[k]}\n')
         except Exception:
             pass

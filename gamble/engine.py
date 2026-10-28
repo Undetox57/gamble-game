@@ -13,12 +13,23 @@ from .config import (ACH_BY_KEY, BANK_INTEREST, CLEAN_REWARD, CLEAN_STREAKS_FOR_
                      SHARK_COLLECT_SHARE, SHARK_DAYS, SHARK_RATE, SHARK_SPIRAL_MULT,
                      STREAK_BETS, STREAK_GAMES, STREAK_P_MAX, TENURE_RANKS, THERAPY_COOLDOWN_DAYS, UNLOCK,
                      TOURNAMENT_BONUS_CAP, TOURNAMENT_BONUS_RATE, TOURNAMENT_DAYS, TOURNAMENT_ENTRY,
-                     TOURNAMENT_EXP, tenure_rank)
+                     TOURNAMENT_EXP, TOURNAMENT_SPRINT_BONUS_CAP, TOURNAMENT_SPRINT_BONUS_RATE,
+                     TOURNAMENT_SPRINT_DAYS, TOURNAMENT_SPRINT_ENTRY, TOURNAMENT_SPRINT_EXP, tenure_rank)
 from .events import build_events
 from .state import BET_HISTORY_LIMIT, HISTORY_LIMIT, GameState, MetaState
 
 TAG_ACHIEVEMENTS = {'jackpot': 'jackpot', 'natural': 'natural', 'lotto4': 'lotto_4', 'crash_5x': 'crash_5x',
                     'edge': 'plinko_edge', 'board_clear': 'mines_clear', 'hilo_7': 'hilo_7'}
+
+
+def tour_rules(mode='classic'):
+    """D12: the numbers behind one tournament window. 'classic' (10 days) or 'sprint' (3 days)."""
+    if mode == 'sprint':
+        return {'entry': TOURNAMENT_SPRINT_ENTRY, 'days': TOURNAMENT_SPRINT_DAYS,
+                'rate': TOURNAMENT_SPRINT_BONUS_RATE, 'cap': TOURNAMENT_SPRINT_BONUS_CAP,
+                'exp': TOURNAMENT_SPRINT_EXP}
+    return {'entry': TOURNAMENT_ENTRY, 'days': TOURNAMENT_DAYS, 'rate': TOURNAMENT_BONUS_RATE,
+            'cap': TOURNAMENT_BONUS_CAP, 'exp': TOURNAMENT_EXP}
 
 
 class Engine:
@@ -183,7 +194,7 @@ class Engine:
             self.log(f'Loan shark interest: +{interest:,} TL. You owe him {s.shark_debt:,} TL.', 'loss')
             if s.day >= s.shark_due:
                 self.shark_collect()
-        if s.tour_active and s.day - s.tour_day >= TOURNAMENT_DAYS:
+        if s.tour_active and s.day - s.tour_day >= tour_rules(getattr(s, 'tour_mode', 'classic'))['days']:
             self.finish_tournament()               # scored before the history point of this day
         s.history.append((s.day, s.net_worth))
         if len(s.history) > HISTORY_LIMIT:
@@ -547,20 +558,25 @@ class Engine:
             self.log(f'You still owe {s.shark_debt:,} TL. He gives you {SHARK_DAYS} more days.', 'warn')
 
     # ---- tournament (Turnuva)
-    def enter_tournament(self):
-        """Pay the entry fee and start a TOURNAMENT_DAYS long race against your own net worth."""
+    def enter_tournament(self, mode='classic'):
+        """Pay the entry fee and start a race against your own net worth.
+        D12: mode='classic' is the 10-day main event, mode='sprint' the 3-day side race."""
         s = self.state
+        r = tour_rules(mode)
         if s.tour_active:
-            self.log(f'A tournament is already running - day {s.day - s.tour_day + 1} of {TOURNAMENT_DAYS}.',
+            run = tour_rules(getattr(s, 'tour_mode', 'classic'))
+            self.log(f'A tournament is already running - day {s.day - s.tour_day + 1} of {run["days"]}.',
                      'warn')
             return False
-        if s.balance < TOURNAMENT_ENTRY:
-            self.log(f'The entry fee is {TOURNAMENT_ENTRY:,} TL - your wallet cannot cover it.', 'warn')
+        if s.balance < r['entry']:
+            self.log(f'The entry fee is {r["entry"]:,} TL - your wallet cannot cover it.', 'warn')
             return False
-        s.balance -= TOURNAMENT_ENTRY
+        s.balance -= r['entry']
         s.tour_active, s.tour_day, s.tour_net = 1, s.day, s.net_worth
-        self.log(f'Tournament entered! {TOURNAMENT_ENTRY:,} TL is held for {TOURNAMENT_DAYS} days. '
-                 f'Beat {s.tour_net:,} TL by day {s.day + TOURNAMENT_DAYS} and you get the entry back '
+        s.tour_mode = mode
+        self.log(f'{"Sprint tournament" if mode == "sprint" else "Tournament"} entered! '
+                 f'{r["entry"]:,} TL is held for {r["days"]} days. '
+                 f'Beat {s.tour_net:,} TL by day {s.day + r["days"]} and you get the entry back '
                  f'plus a bonus.', 'warn')
         self.save()
         return True
@@ -568,24 +584,31 @@ class Engine:
     def finish_tournament(self):
         """Score the window: growth pays the entry back with a bonus, going backwards costs it."""
         s = self.state
+        mode = getattr(s, 'tour_mode', 'classic')
+        r = tour_rules(mode)
+        name = 'SPRINT' if mode == 'sprint' else 'TOURNAMENT'
         s.tour_active = 0
         score = s.net_worth - s.tour_net
         if score >= 0:
-            bonus = min(TOURNAMENT_BONUS_CAP, int(score * TOURNAMENT_BONUS_RATE))
-            s.balance += TOURNAMENT_ENTRY + bonus
-            self.log(f'TOURNAMENT FINISHED: {score:+,} TL in {TOURNAMENT_DAYS} days. Your '
-                     f'{TOURNAMENT_ENTRY:,} TL entry is back'
+            bonus = min(r['cap'], int(score * r['rate']))
+            s.balance += r['entry'] + bonus
+            self.log(f'{name} FINISHED: {score:+,} TL in {r["days"]} days. Your '
+                     f'{r["entry"]:,} TL entry is back'
                      + (f' with a {bonus:,} TL bonus.' if bonus else ' (no growth, no bonus).'), 'win')
-            self.gain_exp(TOURNAMENT_EXP)
+            self.gain_exp(r['exp'])
         else:
-            self.log(f'TOURNAMENT FINISHED: {score:+,} TL in {TOURNAMENT_DAYS} days. You finished behind, '
-                     f'so the {TOURNAMENT_ENTRY:,} TL entry fee is gone.', 'loss')
-            self.gain_exp(TOURNAMENT_EXP // 2)
+            self.log(f'{name} FINISHED: {score:+,} TL in {r["days"]} days. You finished behind, '
+                     f'so the {r["entry"]:,} TL entry fee is gone.', 'loss')
+            self.gain_exp(r['exp'] // 2)
         self.award('tour_finish')
-        if self.meta.record_tournament(s.difficulty, score):
+        fresh = (self.meta.record_sprint(s.difficulty, score) if mode == 'sprint'
+                 else self.meta.record_tournament(s.difficulty, score))
+        if fresh:
             self.save_meta()
-            self.log(f'NEW TOURNAMENT RECORD on {s.diff["name"]}: {score:+,} TL.', 'win')
+            self.log(f'NEW {"SPRINT " if mode == "sprint" else ""}RECORD on {s.diff["name"]}: '
+                     f'{score:+,} TL.', 'win')
             self.award('tour_record')
+        s.tour_mode = 'classic'                     # the window is closed; the next one picks its mode
         self.save()
         return score
 

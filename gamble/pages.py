@@ -12,7 +12,8 @@ from .config import (ACHIEVEMENTS, BANK_INTEREST, CLEAN_STREAKS_FOR_ENDING, CLEA
                      GAME_HOTKEYS, GAME_KEYS, GAME_NAMES, GAME_SUBTITLES, ITEMS, JOBS, LEVEL_EXP, LOBBY_ORDER,
                      MAX_BET, SHARK_CLEAN, SHARK_COLLECT_MENTAL, SHARK_COLLECT_SHARE, SHARK_DAYS,
                      SHARK_RATE, STREAK_BETS, STREAK_P_MAX, TENURE_RANKS, TOURNAMENT_BONUS_RATE,
-                     TOURNAMENT_DAYS, TOURNAMENT_ENTRY, UNLOCK)
+                     TOURNAMENT_DAYS, TOURNAMENT_ENTRY, TOURNAMENT_SPRINT_BONUS_CAP,
+                     TOURNAMENT_SPRINT_BONUS_RATE, TOURNAMENT_SPRINT_DAYS, TOURNAMENT_SPRINT_ENTRY, UNLOCK)
 from .style import TEXT_SCALES
 from .widgets import AC, Button, LineChart, back_button, clear_layout, page_title, section
 
@@ -390,7 +391,7 @@ class StatsPage(QWidget):
         lay.addWidget(self.bets, 2)
         lay.addWidget(section(tr('BEST RUNS  (kept across runs and resets)')))
         self.board = make_table([tr('Difficulty'), tr('Best net worth ever'), tr('This run'),
-                                 tr('Best tournament')], len(DIFFICULTIES))
+                                 tr('Best tournament'), tr('Best sprint')], len(DIFFICULTIES))
         lay.addWidget(self.board, 0)
         lay.addWidget(section(tr('THIS SESSION')))
         self.session_lbl = QLabel('-')
@@ -464,6 +465,8 @@ class StatsPage(QWidget):
             put(self.board, r, 2, f'{s.net_worth:,}' if mine else '-', muted if mine else None, AC)
             tour = tours.get(key, 0)
             put(self.board, r, 3, f'{tour:+,}' if tour else '-', gold if tour else muted, AC)
+            sprint = getattr(self.app.meta, 'sprints', {}).get(key, 0)          # D12
+            put(self.board, r, 4, f'{sprint:+,}' if sprint else '-', gold if sprint else muted, AC)
         ses = getattr(self.app, 'session', None)
         if ses:
             minutes = max(0, round((time.time() - ses['start']) / 60))
@@ -548,10 +551,12 @@ class TrophyPage(QWidget):
             self.case.addWidget(self.trophy(got, tr(title), tr(desc), reward), i // 3, i % 3)
         records = getattr(meta, 'records', {})
         tours = getattr(meta, 'tournaments', {})
+        sprints = getattr(meta, 'sprints', {})
         gold, green, red = '#f4c542', '#4cc38a', '#ff6b6b'
         items = ((tr('Best net worth ever'), f'{max(records.values()):,} TL' if max(records.values()) else '-',
                   gold),
                  (tr('Best tournament'), f'{max(tours.values()):,} TL' if max(tours.values()) else '-', gold),
+                 (tr('Best sprint'), f'{max(sprints.values()):,} TL' if max(sprints.values()) else '-', gold),
                  (tr('Achievements'), f'{len(meta.achievements)} / {len(ACHIEVEMENTS)}', green),
                  (tr('Endings'), f'{len(meta.endings)} / {len(ENDINGS)}', green),
                  (tr('Best win this run'), f'+{s.best_win:,} TL' if s.best_win else '-', green),
@@ -641,6 +646,10 @@ against your score. Finish at a higher net worth than you started and the entry 
 {TOURNAMENT_BONUS_RATE * 100:.0f}% of your growth (capped); finish behind and the fee is gone. Only one
 tournament can run at a time, and the best result of every difficulty is kept in <b>Statistics</b> across
 runs and resets.</p>
+<p>Under it sits the <b>Sprint</b>: the same race compressed into {TOURNAMENT_SPRINT_DAYS} days, with a
+{TOURNAMENT_SPRINT_ENTRY:,} TL entry and {TOURNAMENT_SPRINT_BONUS_RATE * 100:.0f}% of your growth back (capped at
+{TOURNAMENT_SPRINT_BONUS_CAP:,} TL). Same rules, no time to waste - and it keeps its own record next to the
+classic one.</p>
 {h('Shop')}
 <ul>{items}</ul>
 {h('Random events')}
@@ -750,6 +759,9 @@ skorunuza asla işlenmez. Başladığınızdan daha yüksek net varlıkla bitiri
 üstine büyümenizin {TOURNAMENT_BONUS_RATE * 100:.0f}'ü eklenir (üst sınırıyla); geride bitirirseniz para
 yanar. Aynı anda yalnızca bir turnuva olabilir ve her zorluğun en iyi sonucu <b>İstatistikler</b>'te koşular
 ve sıfırlamalar boyunca saklanır.</p>
+<p>Altında <b>Sprint</b> var: aynı yarış {TOURNAMENT_SPRINT_DAYS} güne sığar, giriş {TOURNAMENT_SPRINT_ENTRY:,} TL
+ve büyümenizin {TOURNAMENT_SPRINT_BONUS_RATE * 100:.0f}'ü geri gelir (en fazla {TOURNAMENT_SPRINT_BONUS_CAP:,} TL).
+Aynı kurallar, kaybedecek vakit yok - üstelik klasik turnuvanın yanına kendi rekorunu yazar.</p>
 {h('Dükkân')}
 <ul>{items}</ul>
 {h('Rastgele olaylar')}

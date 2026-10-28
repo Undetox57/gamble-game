@@ -76,6 +76,13 @@ TOURNAMENT_DAYS = 10                # how long one tournament runs
 TOURNAMENT_BONUS_RATE = 0.05        # share of your growth paid on top when you finish ahead
 TOURNAMENT_BONUS_CAP = 2500         # ...but never more than this
 TOURNAMENT_EXP = 40                 # exp for finishing one (half of that when you finish behind)
+
+# D12: the sprint - a second, much shorter tournament (its own record, saved as tsp:<difficulty>)
+TOURNAMENT_SPRINT_ENTRY = 250       # flat entry fee
+TOURNAMENT_SPRINT_DAYS = 3          # how long a sprint runs
+TOURNAMENT_SPRINT_BONUS_RATE = 0.10  # share of your growth paid on top when you finish ahead
+TOURNAMENT_SPRINT_BONUS_CAP = 600   # ...but never more than this
+TOURNAMENT_SPRINT_EXP = 15          # exp for finishing one (half of that when you finish behind)
 LEVEL_EXP = [0, 20, 60, 120, 200, 320, 480, 700, 1000, 1400]          # exp needed for level 1..10
 MAX_BET = [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 10 ** 9]  # max bet per level
 

@@ -374,6 +374,54 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(m3.tournaments['normal'], 0, 'old meta files simply have no tournament yet')
         self.assertEqual(m2.achievements, m3.achievements, 'achievements must survive untouched')
 
+    def test_sprint_is_a_short_tournament_with_its_own_record(self):
+        s, e = self.s, self.e
+        s.exp = config.LEVEL_EXP[-1]                                  # max level: no level-up side effects
+        s.balance = 5000
+        self.assertTrue(e.enter_tournament('sprint'))
+        self.assertEqual(s.tour_mode, 'sprint')
+        self.assertEqual(s.balance, 5000 - config.TOURNAMENT_SPRINT_ENTRY)
+        self.assertFalse(e.enter_tournament('classic'), 'only one tournament at a time')
+        s.balance += 800                                              # finish the window ahead
+        for _ in range(config.TOURNAMENT_SPRINT_DAYS - 1):
+            e.advance_day()
+            self.assertEqual(s.tour_active, 1, 'the sprint lasts 3 days')
+        e.advance_day()
+        self.assertEqual(s.tour_active, 0, 'the window closes after 3 days')
+        bonus = min(config.TOURNAMENT_SPRINT_BONUS_CAP, int(800 * config.TOURNAMENT_SPRINT_BONUS_RATE))
+        self.assertEqual(s.balance, 5000 - config.TOURNAMENT_SPRINT_ENTRY + 800
+                         + config.TOURNAMENT_SPRINT_ENTRY + bonus, 'entry back plus the growth bonus')
+        self.assertEqual(e.meta.sprints[s.difficulty], 800, 'the sprint keeps its own record')
+        self.assertEqual(e.meta.tournaments[s.difficulty], 0, 'the classic record stays untouched')
+        self.assertEqual(s.tour_mode, 'classic', 'the mode resets when the window closes')
+        # the mode and the sprint record survive a save/load round trip, and old files stay valid
+        s.tour_mode = 'sprint'
+        self.assertIsNone(s.save())
+        t = GameState()
+        self.assertIsNone(t.load())
+        self.assertEqual(t.tour_mode, 'sprint')
+        with open(config.SAVE_FILE, encoding='utf-8') as f:            # a save from before this feature
+            lines = [ln for ln in f if not ln.startswith('x:tour_mode')]
+        with open(config.SAVE_FILE, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        u = GameState()
+        self.assertIsNone(u.load())
+        self.assertEqual(u.tour_mode, 'classic', 'old saves simply run the classic tournament')
+        e.meta.record_sprint('hard', 4321)
+        self.assertIsNone(e.meta.save())                    # (tests run with persist=False)
+        m2 = MetaState()
+        m2.load()
+        self.assertEqual(m2.sprints['hard'], 4321)
+        self.assertEqual(m2.tournaments['normal'], 0, 'tsp: lines never touch the classic record')
+        with open(config.META_FILE, encoding='utf-8') as f:            # an old meta file has no tsp: lines
+            text = ''.join(ln for ln in f if not ln.startswith('tsp:'))
+        with open(config.META_FILE, 'w', encoding='utf-8') as f:
+            f.write(text)
+        m3 = MetaState()
+        m3.load()
+        self.assertEqual(m3.sprints['hard'], 0, 'old meta files simply have no sprint yet')
+        self.assertEqual(m2.achievements, m3.achievements, 'achievements must survive untouched')
+
     def test_endings(self):
         s, e = self.s, self.e
         s.mental = 0

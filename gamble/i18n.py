@@ -161,6 +161,19 @@ TR = {'tr': {
         'Kendi net varlığınıza karşı bir yarış. Giriş parası tutulur; önde bitirirseniz geri alırsınız, üstelik '
         'büyümenizin %{p}’si kadar (üst sınırla); geride bitirirse yanar. {diff} rekoru: {best}.',
 
+    # ---- sprint tournament (D12)
+    'Sprint  •  {e} TL, {d} days': 'Sprint  •  {e} TL, {d} gün',
+    'Sprint running  •  day {a}/{b}': 'Sprint sürüyor  •  gün {a}/{b}',
+    'Sprint: started day {d} at {n} TL. Now {m} TL ({g} TL). Finish in the black on day {end} to get the '
+    '{e} TL entry back, plus {p}% of your growth.':
+        'Sprint: {d}. günde {n} TL ile başladı. Şimdi {m} TL ({g} TL). {end}. gününde artıda bitirirseniz '
+        '{e} TL giriş parasını geri alırsınız, üstelik büyümenizin %{p}’si kadar bonus.',
+    'A 3-day dash against your own net worth: {p}% of the growth back on top, capped at {c} TL. Only one '
+    'tournament at a time. Best sprint on {diff}: {best}.':
+        'Kendi net varlığınıza karşı 3 günlük bir koşu: büyümenizin %{p}’si üstüne eklenir, en fazla '
+        '{c} TL. Aynı anda tek turnuva olabilir. {diff} rekoru: {best}.',
+    'Best sprint': 'En iyi sprint',
+
     # ---- session / navigation messages
     '{m} min  •  day {d}  •  {g} games': '{m} dk  •  gün {d}  •  {g} oyun',
     '({w} won, {l} lost)': '({w} kazanıldı, {l} kaybedildi)',

@@ -14,7 +14,8 @@ from PyQt6.QtWidgets import (QAbstractButton, QApplication, QFrame, QGraphicsOpa
 from . import config, share, sound
 from .config import (CATEGORIES, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET, GAME_HOTKEYS, GAME_NAMES, GAME_SUBTITLES,
                      ITEM_BY_KEY, LEVEL_EXP, LOBBY_ORDER, TOURNAMENT_BONUS_RATE, TOURNAMENT_DAYS,
-                     TOURNAMENT_ENTRY, UNLOCK)
+                     TOURNAMENT_ENTRY, TOURNAMENT_SPRINT_BONUS_CAP, TOURNAMENT_SPRINT_BONUS_RATE,
+                     TOURNAMENT_SPRINT_DAYS, TOURNAMENT_SPRINT_ENTRY, UNLOCK)
 from .dialogs import EndingDialog, EventDialog, KeybindDialog, NewGameDialog, SettingsDialog, key_from_name
 from .engine import Engine
 from .fx import alive
@@ -327,6 +328,13 @@ class MainWindow(QMainWindow):
         self.tour_lbl.setWordWrap(True)
         self.tour_lbl.setObjectName('itemDesc')
         lay.addWidget(self.tour_lbl)
+        self.sprint_btn = Button(txf('Sprint  •  {e} TL, {d} days', e='0', d=3))   # D12 (text set in refresh)
+        self.sprint_btn.clicked.connect(self.toggle_sprint)
+        lay.addWidget(self.sprint_btn)
+        self.sprint_lbl = QLabel()
+        self.sprint_lbl.setWordWrap(True)
+        self.sprint_lbl.setObjectName('itemDesc')
+        lay.addWidget(self.sprint_lbl)
         lay.addWidget(section(tr('MENU')))
         lay.addLayout(grid([act('stats', tr('Statistics'), fn=self.show_stats),
                             act('ach', tr('Achievements'), fn=self.show_achievements),
@@ -655,26 +663,49 @@ class MainWindow(QMainWindow):
         self.lbl_status.setText('\n'.join(status))
 
         if s.tour_active:                       # TOURNAMENT panel: running window vs. the entry button
+            running = getattr(s, 'tour_mode', 'classic') == 'classic'
             day_no = min(s.day - s.tour_day + 1, TOURNAMENT_DAYS)   # day 1 on the day you entered
-            self.tour_btn.setText(txf('Tournament running  •  day {a}/{b}', a=day_no, b=TOURNAMENT_DAYS))
-            self.tour_btn.setEnabled(False)
+            self.tour_btn.setText(txf('Tournament running  •  day {a}/{b}', a=day_no, b=TOURNAMENT_DAYS)
+                                  if running else txf('Enter tournament  •  {e} TL, {d} days',
+                                                      e=f'{TOURNAMENT_ENTRY:,}', d=TOURNAMENT_DAYS))
+            self.tour_btn.setEnabled(False if running else not s.tour_active and s.balance >= TOURNAMENT_ENTRY)
             self.tour_lbl.setText(
                 txf('Started day {d} at {n} TL. Now {m} TL ({g} TL). Finish in the black on day {end} to '
                     'get the {e} TL entry back, plus {p}% of your growth.',
                     d=s.tour_day, n=f'{s.tour_net:,}', m=f'{s.net_worth:,}',
                     g=f'{s.net_worth - s.tour_net:+,}', end=s.tour_day + TOURNAMENT_DAYS,
-                    e=f'{TOURNAMENT_ENTRY:,}', p=f'{TOURNAMENT_BONUS_RATE * 100:.0f}'))
+                    e=f'{TOURNAMENT_ENTRY:,}', p=f'{TOURNAMENT_BONUS_RATE * 100:.0f}')
+                if running else self._classic_tour_text())
         else:
-            best = getattr(self.meta, 'tournaments', {}).get(s.difficulty, 0)
             self.tour_btn.setText(txf('Enter tournament  •  {e} TL, {d} days',
                                       e=f'{TOURNAMENT_ENTRY:,}', d=TOURNAMENT_DAYS))
-            self.tour_btn.setEnabled(s.balance >= TOURNAMENT_ENTRY)
-            self.tour_lbl.setText(
-                txf('A race against your own net worth. The entry is held; finish ahead and you get it back '
-                    'plus {p}% of the growth (capped), finish behind and it is gone. Best on {diff}: {best}.',
-                    p=f'{TOURNAMENT_BONUS_RATE * 100:.0f}', diff=s.diff["name"],
-                    best=f'{best:+,} TL' if best else '-'))
+            self.tour_btn.setEnabled(not s.tour_active and s.balance >= TOURNAMENT_ENTRY)
+            self.tour_lbl.setText(self._classic_tour_text())
         self.tour_lbl.setVisible(True)
+
+        sprinting = s.tour_active and getattr(s, 'tour_mode', 'classic') == 'sprint'   # D12
+        if sprinting:
+            day_no = min(s.day - s.tour_day + 1, TOURNAMENT_SPRINT_DAYS)
+            self.sprint_btn.setText(txf('Sprint running  •  day {a}/{b}', a=day_no,
+                                        b=TOURNAMENT_SPRINT_DAYS))
+            self.sprint_btn.setEnabled(False)
+            self.sprint_lbl.setText(
+                txf('Sprint: started day {d} at {n} TL. Now {m} TL ({g} TL). Finish in the black on day '
+                    '{end} to get the {e} TL entry back, plus {p}% of your growth.',
+                    d=s.tour_day, n=f'{s.tour_net:,}', m=f'{s.net_worth:,}',
+                    g=f'{s.net_worth - s.tour_net:+,}', end=s.tour_day + TOURNAMENT_SPRINT_DAYS,
+                    e=f'{TOURNAMENT_SPRINT_ENTRY:,}', p=f'{TOURNAMENT_SPRINT_BONUS_RATE * 100:.0f}'))
+        else:
+            sbest = getattr(self.meta, 'sprints', {}).get(s.difficulty, 0)
+            self.sprint_btn.setText(txf('Sprint  •  {e} TL, {d} days',
+                                        e=f'{TOURNAMENT_SPRINT_ENTRY:,}', d=TOURNAMENT_SPRINT_DAYS))
+            self.sprint_btn.setEnabled(not s.tour_active and s.balance >= TOURNAMENT_SPRINT_ENTRY)
+            self.sprint_lbl.setText(
+                txf('A 3-day dash against your own net worth: {p}% of the growth back on top, capped at '
+                    '{c} TL. Only one tournament at a time. Best sprint on {diff}: {best}.',
+                    p=f'{TOURNAMENT_SPRINT_BONUS_RATE * 100:.0f}', c=f'{TOURNAMENT_SPRINT_BONUS_CAP:,}',
+                    diff=s.diff["name"], best=f'{sbest:+,} TL' if sbest else '-'))
+        self.sprint_lbl.setVisible(True)
 
         self.bet_spin.setRange(1, max(1, min(s.balance, s.max_bet, 2_000_000_000)))
         self.lbl_maxbet.setText(tr('max bet: ') + (tr('no limit') if s.max_bet >= 10 ** 9
@@ -872,8 +903,20 @@ class MainWindow(QMainWindow):
             self.refresh()
 
     # ---- tournament (the engine holds the entry fee and scores the window)
+    def _classic_tour_text(self):
+        """The standing description of the 10-day tournament (also shown while a sprint runs)."""
+        best = getattr(self.meta, 'tournaments', {}).get(self.state.difficulty, 0)
+        return txf('A race against your own net worth. The entry is held; finish ahead and you get it back '
+                   'plus {p}% of the growth (capped), finish behind and it is gone. Best on {diff}: {best}.',
+                   p=f'{TOURNAMENT_BONUS_RATE * 100:.0f}', diff=self.state.diff["name"],
+                   best=f'{best:+,} TL' if best else '-')
+
     def toggle_tournament(self):
-        self.engine.enter_tournament()
+        self.engine.enter_tournament('classic')
+        self.refresh()
+
+    def toggle_sprint(self):                              # D12: the 3-day side race
+        self.engine.enter_tournament('sprint')
         self.refresh()
 
     # ---- life actions (the engine does the work)
