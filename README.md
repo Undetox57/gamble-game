@@ -49,7 +49,7 @@ next to `gamble_gui.py`. Old saves load fine; the console version can still read
       dialogs.py         events, endings, settings, new game
       window.py          main window, navigation, keyboard shortcuts
     tests/test_core.py   python -m unittest discover -s tests
-    installer/           Inno Setup script -> GambleGame-1.0.0-Setup.exe
+    installer/           Inno Setup script -> GambleGame-1.1.0-Setup.exe
     docs/                OKUMA-BENIM.txt (for players), YAYINLAMA.md (distribution + antivirus)
     version_info.txt     Windows file metadata baked into the exe
 
@@ -77,8 +77,8 @@ MIT - see LICENSE.
 
 No Python needed. Grab a build from the **[Releases](https://github.com/Undetox57/gamble-game/releases)** page:
 
-- `GambleGame-1.0.0-Setup.exe` - installer, no admin rights, uninstall keeps your saves
-- `GambleGame-1.0.0-win64.zip` - unpack it and double-click `GambleGame.exe` (keep the `_internal` folder)
+- `GambleGame-1.1.0-Setup.exe` - installer, no admin rights, uninstall keeps your saves
+- `GambleGame-1.1.0-win64.zip` - unpack it and double-click `GambleGame.exe` (keep the `_internal` folder)
 
 Read `OKUMA-BENIM.txt` inside either package for the short version. Saves live next to the exe
 (`savegame.txt`, `gamble_meta.txt`, `gamble_settings.txt`) - copy those three files to move your progress.

@@ -63,8 +63,8 @@ Sonrasında eklenebilir: `windows`, `simulator`, `roguelite` (her koşu sıfırd
 
 | Dosya | Ne |
 |---|---|
-| `GambleGame-1.0.0-Setup.exe` | Kurulum. Yönetici yetkisi istemez, Program Files dışına kurar, kaldırınca kayıtları silmez. |
-| `GambleGame-1.0.0-win64.zip` | Taşınabilir. Aç, `GambleGame.exe`'ye çift tıkla (`_internal` klasörünü yanında tut). |
+| `GambleGame-1.1.0-Setup.exe` | Kurulum. Yönetici yetkisi istemez, Program Files dışına kurar, kaldırınca kayıtları silmez. |
+| `GambleGame-1.1.0-win64.zip` | Taşınabilir. Aç, `GambleGame.exe`'ye çift tıkla (`_internal` klasörünü yanında tut). |
 
 Her ikisine de "Windows" platform etiketi düşer. SHA-256 özetleri `docs/YAYINLAMA.md` ve GitHub
 Release notunda; itch.io açıklaması da oraya yönlendiriyor.

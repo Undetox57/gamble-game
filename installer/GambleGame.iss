@@ -3,7 +3,7 @@
 ; Build (needs Inno Setup 6):
 ;   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\GambleGame.iss
 ; Output:
-;   installer\Output\GambleGame-1.0.0-Setup.exe
+;   installer\Output\GambleGame-1.1.0-Setup.exe
 ;
 ; IMPORTANT: the game writes savegame.txt / gamble_meta.txt / gamble_settings.txt NEXT TO THE
 ; EXECUTABLE, so it must be installed somewhere the user can write to. That is why this installs
@@ -19,7 +19,7 @@
 ; its parameters.
 
 #define MyAppName "Gamble Game"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "Gamble Game contributors"
 #define MyAppURL "https://github.com/"
 #define MyAppExeName "GambleGame.exe"
