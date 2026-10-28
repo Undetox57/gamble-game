@@ -3,7 +3,9 @@ GAMBLE GAME - kısa bilgi
 
 Ne bu?
     Bir kumarhane-yaşam simülasyonu: çalış, borçlan, kumar oyna, hedefe ulaş.
-    16 oyun, turnuva modu, tefeci (kara para), ~%92 ortalama ödeme (RTP), 6 farklı final.
+    16 oyun, iki turnuva modu (10 günlük klasik + 3 günlük sprint), tefeci (kara para),
+    hedef zinciri, trofe odası, paylaşılabilir sonuç kartı, ~%92 ortalama ödeme (RTP),
+    6 farklı final. Arayüz Türkçe ve İngilizce (Ayarlar -> Dil).
     Ücretsiz, MIT lisanslı, açık kaynak.
 
 

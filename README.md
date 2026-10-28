@@ -2,9 +2,11 @@
 
 A casino-life simulation: work, gamble, borrow, level up, and try to reach your goal (or find another way out).
 
-16 games at ~92% RTP, plus two ways to change the stakes: the **loan shark** (6% a day, a hard deadline,
-but he cleans a cut of your wins) and the **tournament** (a fixed-fee, 10-day race against your own
-net worth, ranked per difficulty).
+16 games at ~92% RTP, plus ways to change the stakes: the **loan shark** (6% a day, a hard deadline,
+but he cleans a cut of your wins) and the **tournaments** (a fixed-fee 10-day classic and a 3-day
+sprint, both a race against your own net worth). On top of that a **goal chain** (each cleared goal
+opens a higher one for the next run), a **trophy room**, a shareable **result card**, and a full
+English + Turkish interface.
 
     pip install PyQt6
     python gamble_gui.py
@@ -21,6 +23,11 @@ net worth, ranked per difficulty).
 | <img src="docs/screenshots/03-statistics.png" alt="Statistics" width="100%"> | <img src="docs/screenshots/04-bank-shark.png" alt="Bank and the loan shark" width="100%"> |
 | **Achievements & endings** — 36 goals, 6 ways out | **How to play** — every rule, payout and hotkey |
 | <img src="docs/screenshots/05-achievements.png" alt="Achievements and endings" width="100%"> | <img src="docs/screenshots/06-how-to-play.png" alt="How to play" width="100%"> |
+| **Trophy room** — 36 trophies plus the record plaques | **Goal chain** — clear a goal, the next rung climbs |
+| <img src="docs/screenshots/08b-trophy-plaques.png" alt="Trophy room with record plaques" width="100%"> | <img src="docs/screenshots/09-goal-chain.png" alt="Goal chain in the sidebar" width="100%"> |
+
+The itch.io page (description EN/TR, tags, screenshot order) is written down in
+[`docs/ITCH-IO.md`](docs/ITCH-IO.md).
 
 ## Moving from the old single-file version
 Copy your `savegame.txt` (and `gamble_meta.txt`, `gamble_settings.txt` if you have them) into this folder,
