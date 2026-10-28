@@ -13,9 +13,10 @@ from PyQt6.QtWidgets import (QAbstractButton, QApplication, QFrame, QGraphicsOpa
 
 from . import config, share, sound
 from .config import (CATEGORIES, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET, GAME_HOTKEYS, GAME_NAMES, GAME_SUBTITLES,
-                     ITEM_BY_KEY, LEVEL_EXP, LOBBY_ORDER, TOURNAMENT_BONUS_RATE, TOURNAMENT_DAYS,
-                     TOURNAMENT_ENTRY, TOURNAMENT_SPRINT_BONUS_CAP, TOURNAMENT_SPRINT_BONUS_RATE,
-                     TOURNAMENT_SPRINT_DAYS, TOURNAMENT_SPRINT_ENTRY, UNLOCK)
+                     GOAL_LADDER_MULTS, ITEM_BY_KEY, LEVEL_EXP, LOBBY_ORDER, TOURNAMENT_BONUS_RATE,
+                     TOURNAMENT_DAYS, TOURNAMENT_ENTRY, TOURNAMENT_SPRINT_BONUS_CAP,
+                     TOURNAMENT_SPRINT_BONUS_RATE, TOURNAMENT_SPRINT_DAYS, TOURNAMENT_SPRINT_ENTRY, UNLOCK,
+                     goal_for)
 from .dialogs import EndingDialog, EventDialog, KeybindDialog, NewGameDialog, SettingsDialog, key_from_name
 from .engine import Engine
 from .fx import alive
@@ -51,6 +52,7 @@ class MainWindow(QMainWindow):
         self.log('Welcome to the Gamble Game!', 'warn')
         self.fresh_install = not os.path.exists(config.SAVE_FILE)
         err = self.state.load()
+        self.engine.sync_goal_rung()                # D13: the meta chain decides the goal of this run
         if err:
             self.log(err, 'loss')
         self.session['net0'] = self.state.net_worth     # D1: the session starts here
@@ -187,6 +189,10 @@ class MainWindow(QMainWindow):
         self.bar_goal = QProgressBar()
         self.bar_goal.setStyleSheet('QProgressBar::chunk{background:#d4a017;border-radius:7px;}')
         lay.addWidget(self.bar_goal)
+        self.lab_chain = QLabel()                   # D13: the rungs of the goal chain under the bar
+        self.lab_chain.setObjectName('hint')
+        self.lab_chain.setWordWrap(True)
+        lay.addWidget(self.lab_chain)
         lay.addSpacing(4)
         self.lbl_nogamble, self.lbl_today = QLabel(), QLabel()
         self.lbl_skipped, self.lbl_limits = QLabel(), QLabel()
@@ -643,6 +649,13 @@ class MainWindow(QMainWindow):
         self.bar_goal.setRange(0, s.goal)
         self.bar_goal.setValue(max(0, min(s.goal, nw)))
         self.bar_goal.setFormat(txf('{n} / {g} TL', n=f'{nw:,}', g=f'{s.goal:,}'))
+        total_rungs = len(GOAL_LADDER_MULTS)        # D13: ◆ cleared, ○ still ahead of this run
+        rungs = '◆' * s.goal_rung + '○' * (total_rungs - s.goal_rung)
+        self.lab_chain.setText(
+            rungs + '\n' + (txf('Rung {a}/{b}  •  next {g} TL', a=s.goal_rung, b=total_rungs,
+                                g=f'{goal_for(s.difficulty, s.goal_rung + 1):,}')
+                            if s.goal_rung < total_rungs else
+                            txf('Rung {a}/{b}  •  chain complete', a=total_rungs, b=total_rungs)))
         self.lbl_nogamble.setText(txf('No Gamble Days: {a}/{b}', a=s.no_gamble_days, b=CLEAN_TARGET))
         self.lbl_today.setText(tr('Games today: ') + '●' * s.games_today + '○' * max(0, 5 - s.games_today)
                                + f'  {s.games_today}/5')

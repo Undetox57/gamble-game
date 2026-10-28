@@ -441,6 +441,83 @@ class EngineTest(unittest.TestCase):
         s.stats['coin']['played'] = config.REFORMED_MIN_GAMES
         self.assertEqual(e.check_endings(), 'reformed')
 
+    def test_goal_chain_rungs_open_one_by_one_and_pay_exp(self):
+        s, e = self.s, self.e
+        # rung 1 is the classic goal, so a save from before this feature plays the game it knows
+        s.set_defaults()
+        s.start_run('normal')
+        self.assertEqual(s.goal_rung, 1)
+        self.assertEqual(s.goal, 50_000, 'rung 1 multiplies the classic goal by 1')
+        self.assertEqual(config.goal_for('easy', 2), 45_000)
+        self.assertEqual(config.goal_for('hard', 5), 2_000_000)
+        self.assertEqual(config.goal_for('normal', 99), 1_000_000, 'rungs past the chain clamp to the top')
+
+        # hitting the goal opens the next rung, queues its exp and ends the run as it always did
+        s.balance = 60_000
+        self.assertEqual(e.check_endings(), 'high_roller')
+        self.assertEqual(e.meta.goal_rungs['normal'], 2, 'clearing a rung opens the next one')
+        self.assertEqual(e.meta.chain_exp, config.GOAL_LADDER_EXP[0], 'the reward waits for the next run')
+        self.assertEqual(e.meta.goal_rungs['hard'], 1, 'every difficulty keeps its own chain')
+
+        # the next run starts on the new rung and collects the queued exp
+        e.new_game('normal')
+        self.assertEqual(s.goal_rung, 2, 'the new run plays for the unlocked rung')
+        self.assertEqual(s.goal, 75_000)
+        self.assertEqual(s.exp, config.GOAL_LADDER_EXP[0], 'the promise is paid at the start')
+        self.assertEqual(e.meta.chain_exp, 0)
+        s.balance = 60_000
+        self.assertIsNone(e.check_endings(), '60,000 no longer ends the run - the bar moved to 75,000')
+        s.balance = 80_000
+        self.assertEqual(e.check_endings(), 'high_roller', 'the new rung can still be cleared')
+        self.assertEqual(e.meta.goal_rungs['normal'], 3)
+        self.assertEqual(e.meta.chain_exp, config.GOAL_LADDER_EXP[1], 'the rewards stack up')
+
+        # the top rung stops growing but still pays
+        s.set_defaults()
+        s.start_run('hard')
+        s.goal_rung = len(config.GOAL_LADDER_MULTS)
+        e.meta.goal_rungs['hard'] = len(config.GOAL_LADDER_MULTS)
+        s.balance = 3_000_000
+        self.assertEqual(e.check_endings(), 'high_roller')
+        self.assertEqual(e.meta.goal_rungs['hard'], len(config.GOAL_LADDER_MULTS), 'the chain has a top')
+        self.assertEqual(e.meta.chain_exp, config.GOAL_LADDER_EXP[4] + config.GOAL_LADDER_EXP[1])
+
+        # a run that got further than its meta file keeps its rung and heals the file back
+        s.set_defaults()
+        s.start_run('normal')
+        s.goal_rung, e.meta.goal_rungs['normal'] = 4, 2
+        e.sync_goal_rung()
+        self.assertEqual(s.goal_rung, 4)
+        self.assertEqual(e.meta.goal_rungs['normal'], 4)
+
+        # the rung and the queued exp survive the save files
+        self.assertIsNone(s.save())
+        t = GameState()
+        self.assertIsNone(t.load())
+        self.assertEqual(t.goal_rung, 4)
+        with open(config.SAVE_FILE, encoding='utf-8') as f:            # a save from before this feature
+            lines = [ln for ln in f if not ln.startswith('x:goal_rung')]
+        with open(config.SAVE_FILE, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        u = GameState()
+        self.assertIsNone(u.load())
+        self.assertEqual(u.goal_rung, 1, 'old saves start the chain at rung 1')
+        e.meta.chain_exp, e.meta.goal_rungs['normal'] = 85, 3
+        self.assertIsNone(e.meta.save())                    # (tests run with persist=False)
+        m2 = MetaState()
+        m2.load()
+        self.assertEqual(m2.goal_rungs['normal'], 3)
+        self.assertEqual(m2.chain_exp, 85)
+        with open(config.META_FILE, encoding='utf-8') as f:            # an old meta file has no gru: lines
+            text = ''.join(ln for ln in f if not ln.startswith(('gru:', 'cxp:')))
+        with open(config.META_FILE, 'w', encoding='utf-8') as f:
+            f.write(text)
+        m3 = MetaState()
+        m3.load()
+        self.assertEqual(m3.goal_rungs['normal'], 1, 'old meta files start the chain at rung 1')
+        self.assertEqual(m3.chain_exp, 0)
+        self.assertEqual(m2.achievements, m3.achievements, 'achievements must survive untouched')
+
     def test_history_is_recorded_and_thinned(self):
         s, e = self.s, self.e
         for _ in range(900):

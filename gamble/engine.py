@@ -8,13 +8,15 @@ import random
 
 from .config import (ACH_BY_KEY, BANK_INTEREST, CLEAN_REWARD, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET,
                      DIFFICULTIES,
-                     ENDINGS, EVENT_CHANCE, GAME_NAMES, ITEM_BY_KEY, JOB_BY_KEY, JOBS, LEVEL_EXP, MAX_BET,
+                     ENDINGS, EVENT_CHANCE, GAME_NAMES, GOAL_LADDER_EXP, GOAL_LADDER_MULTS, ITEM_BY_KEY,
+                     JOB_BY_KEY, JOBS, LEVEL_EXP, MAX_BET,
                      PERMANENT_ITEMS, REFORMED_MIN_GAMES, SHARK_CLEAN, SHARK_COLLECT_MENTAL,
                      SHARK_COLLECT_SHARE, SHARK_DAYS, SHARK_RATE, SHARK_SPIRAL_MULT,
                      STREAK_BETS, STREAK_GAMES, STREAK_P_MAX, TENURE_RANKS, THERAPY_COOLDOWN_DAYS, UNLOCK,
                      TOURNAMENT_BONUS_CAP, TOURNAMENT_BONUS_RATE, TOURNAMENT_DAYS, TOURNAMENT_ENTRY,
                      TOURNAMENT_EXP, TOURNAMENT_SPRINT_BONUS_CAP, TOURNAMENT_SPRINT_BONUS_RATE,
-                     TOURNAMENT_SPRINT_DAYS, TOURNAMENT_SPRINT_ENTRY, TOURNAMENT_SPRINT_EXP, tenure_rank)
+                     TOURNAMENT_SPRINT_DAYS, TOURNAMENT_SPRINT_ENTRY, TOURNAMENT_SPRINT_EXP, goal_for,
+                     tenure_rank)
 from .events import build_events
 from .state import BET_HISTORY_LIMIT, HISTORY_LIMIT, GameState, MetaState
 
@@ -42,6 +44,7 @@ class Engine:
         self.pending_events = []
         self.log_fn = None
         self.celebrate_fn = None
+        self.sync_goal_rung()               # D13: a state handed in already knows its chain
 
     # ---- plumbing
     def log(self, msg, kind='info'):
@@ -63,6 +66,48 @@ class Engine:
     def save_meta(self):
         if self.persist:
             self.meta.save()
+
+    # ---- goal chain (D13)
+    def sync_goal_rung(self):
+        """Which rung of the goal chain the current run plays for. The meta file is the source of
+        truth for what has been unlocked; a run that got further than a lost meta file keeps its
+        rung and heals the file back."""
+        s, m = self.state, self.meta
+        unlocked = max(s.goal_rung, m.goal_rungs.get(s.difficulty, 1))
+        if s.goal_rung != unlocked:
+            s.goal_rung = unlocked
+        if m.goal_rungs.get(s.difficulty, 1) < unlocked:
+            m.goal_rungs[s.difficulty] = unlocked
+            self.save_meta()
+
+    def unlock_goal_rung(self):
+        """The run just hit its goal: open the next rung for this difficulty and queue its exp.
+        The run ends here (as always), so the exp is collected by the run that starts next."""
+        s = self.state
+        cleared = s.goal_rung
+        reward = GOAL_LADDER_EXP[cleared - 1] if cleared <= len(GOAL_LADDER_EXP) else 0
+        opened = self.meta.advance_goal_rung(s.difficulty)
+        if reward:
+            self.meta.chain_exp += reward
+        self.save_meta()
+        total = len(GOAL_LADDER_MULTS)
+        self.log(f'GOAL CHAIN: rung {cleared} of {total} cleared on {s.diff["name"]}'
+                 + (f', +{reward} exp waiting for your next run' if reward else '')
+                 + (f'. Next goal: {goal_for(s.difficulty, opened):,} TL.' if opened > cleared
+                    else '. The chain is complete.'), 'win')
+        self.celebrate()
+
+    def pay_chain_reward(self):
+        """Hand over the exp promised by a cleared rung. It is paid here because the run that earned
+        it is already over and exp does not survive a reset - the meta file holds the promise."""
+        if not self.meta.chain_exp:
+            return
+        amount = self.meta.chain_exp
+        self.meta.chain_exp = 0
+        self.save_meta()
+        self.gain_exp(amount)
+        self.log(f'GOAL CHAIN REWARD: +{amount} exp for the rung you cleared.', 'win')
+        self.celebrate()
 
     # ---- small helpers
     def add_mental(self, n):
@@ -687,6 +732,7 @@ class Engine:
             key = 'high_roller' if s.mental >= 50 else 'hollow'
             if s.difficulty == 'hard':
                 self.award('hard_win')
+            self.unlock_goal_rung()                 # D13: the next rung of the chain opens
         elif (s.clean_streaks >= CLEAN_STREAKS_FOR_ENDING and s.total_played >= REFORMED_MIN_GAMES
               and not s.reformed):
             s.reformed = 1
@@ -700,8 +746,10 @@ class Engine:
     def new_game(self, difficulty):
         self.pending_events.clear()
         self.state.reset(difficulty)
+        self.sync_goal_rung()                       # D13: the new run plays for the unlocked rung
         self.log(f'Starting a new game on {DIFFICULTIES[self.state.difficulty]["name"]} difficulty... '
                  '(achievements and endings are kept)', 'warn')
+        self.pay_chain_reward()                     # D13: the exp promised by the last cleared rung
         self.save()
 
     def end_run(self, start_over, difficulty=None):

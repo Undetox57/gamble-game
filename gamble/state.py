@@ -4,8 +4,8 @@ import os
 import shutil
 
 from . import config
-from .config import (ACH_BY_KEY, BANK_INTEREST_CAP_PER_LEVEL, DIFFICULTIES, ENDINGS, GAME_KEYS, JOB_BY_KEY,
-                     MAX_BET, level_for)
+from .config import (ACH_BY_KEY, BANK_INTEREST_CAP_PER_LEVEL, DIFFICULTIES, ENDINGS, GAME_KEYS, GOAL_LADDER_MULTS,
+                     JOB_BY_KEY, MAX_BET, goal_for, level_for)
 
 HISTORY_LIMIT = 400
 BET_HISTORY_LIMIT = 60                 # how many recent bets are kept in the save (20 are shown)
@@ -13,6 +13,15 @@ BET_HISTORY_LIMIT = 60                 # how many recent bets are kept in the sa
 
 def new_stats():
     return {k: {'played': 0, 'won': 0, 'lost': 0} for k in GAME_KEYS}
+
+
+def rung_or_one(value):
+    """D13: a goal-chain rung read from a save file. Missing or damaged falls back to rung 1,
+    which is the classic goal, so an old save always plays the game it knows."""
+    try:
+        return min(max(1, int(float(value))), len(GOAL_LADDER_MULTS))
+    except Exception:
+        return 1
 
 
 class GameState:
@@ -43,6 +52,7 @@ class GameState:
         self.job = 'courier'
         self.difficulty = 'normal'
         self.tour_mode = 'classic'                      # D12: 'classic' or 'sprint'
+        self.goal_rung = 1                               # D13: which rung of the goal chain this run plays for
         self.items = {}                              # item key -> count (permanent items: 1)
         self.profit = {k: 0 for k in GAME_KEYS}      # net winnings per game in this run
         self.history = [(1, 100)]                    # (day, net worth) for the chart
@@ -58,7 +68,8 @@ class GameState:
 
     @property
     def goal(self):
-        return self.diff['goal']
+        """D13: the goal of the rung this run plays for - rung 1 is the classic goal."""
+        return goal_for(self.difficulty, self.goal_rung)
 
     @property
     def level(self):
@@ -168,12 +179,14 @@ class GameState:
             job = extras.get('job', 'courier')
             difficulty = extras.get('difficulty', 'normal')
             tour_mode = extras.get('tour_mode', 'classic')   # old saves have no such line
+            goal_rung = rung_or_one(extras.get('goal_rung', 1))   # D13: old saves have no such line either
             self.balance, self.bank, self.stats = balance, bank, stats
             (self.day, self.skipped_days, self.work_streak, self.mental,
              self.out_days, self.exp, self.work_cooldown, self.no_gamble_days) = vals
             self.job = job if job in JOB_BY_KEY else 'courier'
             self.difficulty = difficulty if difficulty in DIFFICULTIES else 'normal'
             self.tour_mode = tour_mode if tour_mode in ('classic', 'sprint') else 'classic'
+            self.goal_rung = goal_rung
             self.items = {k: v for k, v in items.items() if v > 0 and k in config.ITEM_BY_KEY}
             self.profit = profit
             for k, v in extra_ints.items():
@@ -199,7 +212,8 @@ class GameState:
                 for key in self.stats:
                     s = self.stats[key]
                     f.write(f"{key}:{s['played']}:{s['won']}:{s['lost']}\n")
-                f.write(f'x:job:{self.job}\nx:difficulty:{self.difficulty}\nx:tour_mode:{self.tour_mode}\n')
+                f.write(f'x:job:{self.job}\nx:difficulty:{self.difficulty}\nx:tour_mode:{self.tour_mode}\n'
+                        f'x:goal_rung:{self.goal_rung}\n')
                 for k in self.EXTRA_INT:
                     f.write(f'x:{k}:{getattr(self, k)}\n')
                 for k, n in self.items.items():
@@ -225,6 +239,8 @@ class MetaState:
         self.records = {k: 0 for k in DIFFICULTIES}   # best net worth ever reached on each difficulty
         self.tournaments = {k: 0 for k in DIFFICULTIES}   # best tournament result on each difficulty
         self.sprints = {k: 0 for k in DIFFICULTIES}       # D12: best sprint result on each difficulty
+        self.goal_rungs = {k: 1 for k in DIFFICULTIES}    # D13: goal-chain rung unlocked on each difficulty
+        self.chain_exp = 0                                # D13: exp promised by a cleared rung, paid at the next start
 
     def record(self, difficulty, net_worth):
         """Remember the best net worth of a difficulty. Returns True when it is a new best."""
@@ -256,6 +272,15 @@ class MetaState:
         self.sprints[difficulty] = value
         return True
 
+    def advance_goal_rung(self, difficulty):
+        """D13: open the next rung of a difficulty's goal chain. Returns the rung now open
+        (the top rung stays where it is - clearing it pays, but the chain does not grow)."""
+        if difficulty not in self.goal_rungs:
+            return 1
+        top = len(GOAL_LADDER_MULTS)
+        self.goal_rungs[difficulty] = min(top, self.goal_rungs[difficulty] + 1)
+        return self.goal_rungs[difficulty]
+
     def load(self):
         lines = []
         try:
@@ -283,6 +308,13 @@ class MetaState:
                     diff, _, val = key.partition(':')
                     if diff in DIFFICULTIES:
                         self.sprints[diff] = max(self.sprints[diff], int(float(val)))
+                elif kind == 'gru':                  # gru:<difficulty>:<unlocked rung> (D13)
+                    diff, _, val = key.partition(':')
+                    if diff in DIFFICULTIES:
+                        rung = rung_or_one(val)
+                        self.goal_rungs[diff] = max(self.goal_rungs[diff], rung)
+                elif kind == 'cxp':                  # cxp:<exp queued for the next run> (D13)
+                    self.chain_exp = max(0, int(float(key)))
             except Exception:
                 continue
 
@@ -302,5 +334,10 @@ class MetaState:
                 for k in sorted(self.sprints):        # D12
                     if self.sprints[k]:
                         f.write(f'tsp:{k}:{self.sprints[k]}\n')
+                for k in sorted(self.goal_rungs):     # D13: rung 1 is the default, no line needed
+                    if self.goal_rungs[k] > 1:
+                        f.write(f'gru:{k}:{self.goal_rungs[k]}\n')
+                if self.chain_exp:                    # D13
+                    f.write(f'cxp:{self.chain_exp}\n')
         except Exception:
             pass

@@ -9,11 +9,13 @@ from PyQt6.QtWidgets import (QAbstractItemView, QFrame, QGridLayout, QHBoxLayout
 from . import rules
 from .i18n import current, tr, txf
 from .config import (ACHIEVEMENTS, BANK_INTEREST, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET, DIFFICULTIES, ENDINGS,
-                     GAME_HOTKEYS, GAME_KEYS, GAME_NAMES, GAME_SUBTITLES, ITEMS, JOBS, LEVEL_EXP, LOBBY_ORDER,
+                     GAME_HOTKEYS, GAME_KEYS, GAME_NAMES, GAME_SUBTITLES, GOAL_LADDER_MULTS, ITEMS, JOBS,
+                     LEVEL_EXP, LOBBY_ORDER,
                      MAX_BET, SHARK_CLEAN, SHARK_COLLECT_MENTAL, SHARK_COLLECT_SHARE, SHARK_DAYS,
                      SHARK_RATE, STREAK_BETS, STREAK_P_MAX, TENURE_RANKS, TOURNAMENT_BONUS_RATE,
                      TOURNAMENT_DAYS, TOURNAMENT_ENTRY, TOURNAMENT_SPRINT_BONUS_CAP,
-                     TOURNAMENT_SPRINT_BONUS_RATE, TOURNAMENT_SPRINT_DAYS, TOURNAMENT_SPRINT_ENTRY, UNLOCK)
+                     TOURNAMENT_SPRINT_BONUS_RATE, TOURNAMENT_SPRINT_DAYS, TOURNAMENT_SPRINT_ENTRY, UNLOCK,
+                     goal_for)
 from .style import TEXT_SCALES
 from .widgets import AC, Button, LineChart, back_button, clear_layout, page_title, section
 
@@ -552,11 +554,15 @@ class TrophyPage(QWidget):
         records = getattr(meta, 'records', {})
         tours = getattr(meta, 'tournaments', {})
         sprints = getattr(meta, 'sprints', {})
+        rungs = getattr(meta, 'goal_rungs', {})     # D13: the deepest rung opened on any difficulty
+        best = max(DIFFICULTIES, key=lambda d: rungs.get(d, 1))
         gold, green, red = '#f4c542', '#4cc38a', '#ff6b6b'
         items = ((tr('Best net worth ever'), f'{max(records.values()):,} TL' if max(records.values()) else '-',
                   gold),
                  (tr('Best tournament'), f'{max(tours.values()):,} TL' if max(tours.values()) else '-', gold),
                  (tr('Best sprint'), f'{max(sprints.values()):,} TL' if max(sprints.values()) else '-', gold),
+                 (tr('Goal chain'), f'{DIFFICULTIES[best]["name"]} {rungs.get(best, 1)}/{len(GOAL_LADDER_MULTS)}',
+                  gold),
                  (tr('Achievements'), f'{len(meta.achievements)} / {len(ACHIEVEMENTS)}', green),
                  (tr('Endings'), f'{len(meta.endings)} / {len(ENDINGS)}', green),
                  (tr('Best win this run'), f'+{s.best_win:,} TL' if s.best_win else '-', green),
@@ -598,11 +604,18 @@ def help_html_en(state):
                    f"<td>7-day bonus {j['bonus']} TL</td></tr>" for j in JOBS)
     items = ''.join(f"<li><b>{i['name']}</b> ({i['price']} TL, level {i['level']}): {i['desc']}</li>" for i in ITEMS)
     diffs = ''.join(f"<li><b>{d['name']}</b>: {d['desc']}</li>" for d in DIFFICULTIES.values())
+    ladder = ' → '.join(f'{goal_for(state.difficulty, r):,}' for r in range(1, len(GOAL_LADDER_MULTS) + 1))
     return f"""
 <h2 style='color:{gold}'>How to play</h2>
 <p>You are broke, a little reckless and one lucky streak away from a different life. Your goal is to reach a net
 worth of <b>{state.goal:,} TL</b> (wallet + bank − debt − loan-shark debt) on <b>{state.diff['name']}</b>
 difficulty. Or find another way out; there are six endings.</p>
+{h('The goal chain')}
+<p>Reaching the goal still ends the run - only the goal itself climbs afterwards. Every difficulty keeps its
+own chain of <b>{len(GOAL_LADDER_MULTS)} rungs</b>; on {state.diff['name']} it reads <b>{ladder} TL</b>.
+Clearing a rung queues an exp reward that is paid the moment your next run starts, and the rung stays
+unlocked in the meta file forever. The side panel prints the chain right under the goal bar:
+<b>◆</b> is cleared, <b>○</b> is still ahead.</p>
 {h('A day in your life')}
 <ul>
 <li><b>Games:</b> every game you play uses part of your day. After 5 games the day ends.</li>
@@ -710,11 +723,18 @@ def help_html_tr(state):
     items = ''.join(f"<li><b>{i['name']}</b> ({i['price']} TL, seviye {i['level']}): {i['desc']}</li>"
                     for i in ITEMS)
     diffs = ''.join(f"<li><b>{d['name']}</b>: {d['desc']}</li>" for d in DIFFICULTIES.values())
+    ladder = ' → '.join(f'{goal_for(state.difficulty, r):,}' for r in range(1, len(GOAL_LADDER_MULTS) + 1))
     return f"""
 <h2 style='color:{gold}'>Nasıl oynanır</h2>
 <p>Paranız yok, biraz pervasızsınız ve başka bir hayata giden tek şanslı seriden uzaktasınız. Hedefiniz
 <b>{state.goal:,} TL</b> net varlığa (cüzdan + banka − borç − tefeci borcu) ulaşmak: bunu
 <b>{state.diff['name']}</b> zorluğunda yapın. Ya da başka bir çıkış yolu bulun; altı sonuç var.</p>
+{h('Hedef zinciri')}
+<p>Hedefe ulaşmak koşuyu bitirir - ama ardından hedefin kendisi yükselir. Her zorluğun kendi
+<b>{len(GOAL_LADDER_MULTS)} basamaklı</b> zinciri vardır; {state.diff['name']} zinciri
+<b>{ladder} TL</b> şeklinde ilerler. Bir basamağı temizlemek, bir sonraki koşunuzun başında ödenecek
+bir deneyim ödülü kazandırır ve basamak meta dosyasında sonsuza dek açık kalır. Yan panel zinciri
+hedef çubuğunun hemen altında gösterir: <b>◆</b> temizlendi, <b>○</b> sizi bekliyor.</p>
 {h('Hayatınızdaki bir gün')}
 <ul>
 <li><b>Oyunlar:</b> her oyun gününüzden bir parça götürür. 5 oyun sonunda gün biter.</li>

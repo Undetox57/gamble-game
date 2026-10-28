@@ -87,6 +87,8 @@ TR = {'tr': {
     'WORK STREAK': 'ÇALIŞMA SERİSİ',
     'GOAL': 'HEDEF',
     '{n} / {g} TL': '{n} / {g} TL',
+    'Rung {a}/{b}  •  next {g} TL': 'Basamak {a}/{b}  •  sıradaki {g} TL',
+    'Rung {a}/{b}  •  chain complete': 'Basamak {a}/{b}  •  zincir tamamlandı',
     'No Gamble Days: {a}/{b}': 'Kumarsız gün: {a}/{b}',
     'Games today: ': 'Bugün oynanan: ',
     'Skipped days (no games): {n}': 'Geçen günler (oyunsuz): {n}',
@@ -173,6 +175,7 @@ TR = {'tr': {
         'Kendi net varlığınıza karşı 3 günlük bir koşu: büyümenizin %{p}’si üstüne eklenir, en fazla '
         '{c} TL. Aynı anda tek turnuva olabilir. {diff} rekoru: {best}.',
     'Best sprint': 'En iyi sprint',
+    'Goal chain': 'Hedef zinciri',
 
     # ---- session / navigation messages
     '{m} min  •  day {d}  •  {g} games': '{m} dk  •  gün {d}  •  {g} oyun',

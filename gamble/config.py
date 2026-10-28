@@ -115,6 +115,21 @@ DIFFICULTIES = {
                      '88%. Goal: 100,000 TL.'},
 }
 
+# ---------------------------------------------------------------- goal chain (D13)
+# Every cleared goal raises the bar: each difficulty keeps its own chain of rungs, and the run still
+# ends at the goal the moment you reach it. Rung 1 multiplies the classic goal by 1, so old saves and
+# old meta files (no rung lines at all) play exactly the game they always did.
+GOAL_LADDER_MULTS = (1, 1.5, 3, 6, 20)        # normal: 50k / 75k / 150k / 300k / 1M TL
+GOAL_LADDER_EXP = (25, 60, 150, 400, 1000)     # exp queued for the next run when a rung is cleared
+
+
+def goal_for(difficulty, rung=1):
+    """The money goal of one goal-chain rung (rungs outside the chain clamp to its ends)."""
+    mults = GOAL_LADDER_MULTS
+    mult = mults[min(max(1, int(rung)), len(mults)) - 1]
+    return int(round(DIFFICULTIES[difficulty]['goal'] * mult))
+
+
 # ---------------------------------------------------------------- streak side bet (B6)
 # Payouts for "win N games in a row". The odds are priced off STREAK_P_MAX, the highest win
 # probability any eligible game can reach (Slot: 0.52), so the side bet can never be farmed by
