@@ -123,10 +123,10 @@ Get-FileHash dist\GambleGame-1.1.0-win64.zip,
 ### Güncel hash'ler (1.1.0)
 
 ```
-AB7B800AC01EF837DACDAE483B2C78CD4560A619AC463840F3A77B2BF482F539  GambleGame-1.1.0-win64.zip
-0D3900A6D279B14B63528A83EF3BC050A01CF1813BBA36C4027586B88300E7CE  GambleGame-1.1.0-Setup.exe
+5D8E929354509BEAFCDAEE693451A585E9DA2BC6DB7E1A8E31EB85E65F1A6500  GambleGame-1.1.0-win64.zip
+46F285DCCD40278E6B8FDBC38084FA3090BCF3D17A477D938865E5910B1BF4FE  GambleGame-1.1.0-Setup.exe
 0FD87A688B98CF1D9760E4E1AE01C53094F1F5E7903143D2AC692F4C59F10FE2  GambleGame.exe (onefile)
-4B25C97C2C037DD66548320C71AF905DF0D0FFC4F5A9F2C838B58EA1881FCEA8  GambleGame\GambleGame.exe (onedir)
+A506FCE6BB15EF53FC77B84411987F7B7C9B502C35B4E9517C27EB7453878D9D  GambleGame\GambleGame.exe (onedir)
 ```
 
 1.0.0 sürümünün hash'leri `RELEASE-1.0.0.md` içinde duruyor (eski sürümü tanımlarken oraya bak).
@@ -145,9 +145,12 @@ python -m PyInstaller --noconfirm --clean gamble_gui_onedir.spec
 #    tek dosya sürümü istersen:
 python -m PyInstaller --noconfirm --clean gamble_gui.spec
 
-# 2) kurulum sihirbazı
+# 2) oyuncu dosyalarını exe'nin YANINA kopyala (PyInstaller onları _internal içine gömer)
+Copy-Item docs\OKUMA-BENIM.txt, LICENSE -Destination dist\GambleGame
+
+# 3) kurulum sihirbazı
 & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\GambleGame.iss
 
-# 3) zip
+# 4) zip
 Compress-Archive -Path dist\GambleGame -DestinationPath dist\GambleGame-1.1.0-win64.zip -CompressionLevel Optimal
 ```

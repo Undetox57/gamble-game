@@ -58,6 +58,7 @@ Because the rules and the engine have no Qt in them, the simulator and the GUI a
 ## Building a Windows executable
     python -m PyInstaller --noconfirm --clean gamble_gui_onedir.spec   # folder build (recommended)
     python -m PyInstaller --noconfirm --clean gamble_gui.spec          # single-file build
+    Copy-Item docs\OKUMA-BENIM.txt, LICENSE -Destination dist\GambleGame   # next to the exe, not in _internal
     "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\GambleGame.iss
 
 Saves always live NEXT TO THE EXE (see `config._base_dir`), which is why the installer uses

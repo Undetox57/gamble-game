@@ -8,6 +8,8 @@ a = Analysis(
     ['gamble_gui.py'],
     pathex=[],
     binaries=[],
+    # NOTE: OKUMA-BENIM.txt and LICENSE are copied next to GambleGame.exe AFTER the build (see
+    # docs/YAYINLAMA.md step 2) - PyInstaller 6 would bury datas in _internal\, where nobody sees them.
     datas=[],
     hiddenimports=[],
     hookspath=[],
