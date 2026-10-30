@@ -30,6 +30,7 @@ PyInstaller tek-dosya paketleri, kendini `%TEMP`\`_MEIxxxx` klasörüne açıp
 Bizim yaptıklarımız (bunlar zaten yapıldı):
 
 - [x] Gerçek Windows sürüm bilgisi eklendi (`version_info.txt` → ürün adı, açıklama, telif)
+- [x] Uygulama ikonu eklendi (`installer\GambleGame.ico` - çip ikonu; `python tools\make_icon.py` ile yeniden üretilir)
 - [x] UPX sıkıştırması kapalı (`upx=False`)
 - [x] Klasör (onedir) sürümü üretildi → kendini açmadığı için çok daha az bayrak
 - [x] Windows Defender yerel taraması: **tehdit bulunamadı**
@@ -140,6 +141,9 @@ A506FCE6BB15EF53FC77B84411987F7B7C9B502C35B4E9517C27EB7453878D9D  GambleGame\Gam
 ## 6. Yeniden üretim
 
 ```powershell
+# 0) ikon: installer\GambleGame.ico repoda durur; ikon tasarımını değiştirirsen
+#    python tools\make_icon.py   ile yeniden üret (spec'ler ve kurulum onu kullanır)
+
 # 1) oyun exe'si (klasör sürümü, AV için önerilen)
 python -m PyInstaller --noconfirm --clean gamble_gui_onedir.spec
 #    tek dosya sürümü istersen:

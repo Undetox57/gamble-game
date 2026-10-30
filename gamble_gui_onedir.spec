@@ -37,6 +37,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='installer/GambleGame.ico',   # the casino chip (same art as the window icon, tools/make_icon.py)
     version='version_info.txt',
 )
 

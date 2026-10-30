@@ -3,9 +3,10 @@ import math
 import random
 
 from PyQt6.QtCore import QPointF, QRectF, Qt, QTimer
-from PyQt6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen, QPolygonF
+from PyQt6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPen, QPolygonF, QPixmap
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
+from . import sound
 from .i18n import tr
 from .rules import RED          # noqa: F401  (card colours)
 
@@ -19,6 +20,52 @@ class Button(QPushButton):
     def __init__(self, *args):
         super().__init__(*args)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.clicked.connect(lambda: sound.play('click'))     # the soft tick of a chip landing
+
+
+_ICON = None
+
+
+def app_icon(size=256):
+    """The game's icon: a gold casino chip with a G, drawn once at runtime (no image files).
+    Used for the window, every dialog and - via tools/make_icon.py - the exe and installer."""
+    global _ICON
+    if _ICON is not None:
+        return _ICON
+    pm = QPixmap(size, size)
+    pm.fill(QColor(0, 0, 0, 0))
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    m = size * 0.04
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor('#141821'))
+    p.drawRoundedRect(QRectF(m, m, size - 2 * m, size - 2 * m), size * 0.18, size * 0.18)
+    cx = cy = size / 2
+    r = size * 0.34
+    p.setPen(QPen(QColor('#f4c542'), size * 0.055))
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawEllipse(QPointF(cx, cy), r, r)
+    p.setPen(QPen(QColor('#141821'), size * 0.05))            # the chip's six edge notches
+    for i in range(6):
+        a = math.radians(i * 60 + 30)
+        p.drawLine(QPointF(cx + (r - size * 0.035) * math.cos(a), cy + (r - size * 0.035) * math.sin(a)),
+                   QPointF(cx + (r + size * 0.035) * math.cos(a), cy + (r + size * 0.035) * math.sin(a)))
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor('#1c2230'))
+    p.drawEllipse(QPointF(cx, cy), r * 0.66, r * 0.66)
+    p.setPen(QColor('#f4c542'))
+    font = QFont()
+    font.setPixelSize(int(size * 0.30))
+    font.setBold(True)
+    p.setFont(font)
+    p.drawText(QRectF(0, 0, size, size), AC, 'G')
+    p.end()
+    icon = QIcon()
+    for s in (16, 24, 32, 48, 64, 128, 256):
+        icon.addPixmap(pm.scaled(s, s, Qt.AspectRatioMode.KeepAspectRatio,
+                                 Qt.TransformationMode.SmoothTransformation))
+    _ICON = icon
+    return icon
 
 
 class LineChart(QWidget):

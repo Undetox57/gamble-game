@@ -32,6 +32,7 @@ exe = EXE(
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,                   # a game: no black console window next to it
+    icon='installer/GambleGame.ico', # the casino chip (same art as the window icon, tools/make_icon.py)
     version='version_info.txt',      # real product name / file version / copyright in the properties
     disable_windowed_traceback=False,
     argv_emulation=False,

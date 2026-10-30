@@ -26,6 +26,13 @@ Every difficulty keeps its own chain of five rungs; on Normal the goal climbs
 next run collects at startup, and the unlocked rung is stored in the meta file forever. The chain
 is drawn under the goal bar in the side panel.
 
+**Polish** - the game now announces its big moments: sliding notification toasts for level ups,
+achievements and new tournament records, a BIG WIN / JACKPOT banner over the table (with confetti
+and a short screen shake on jackpots, 4x wins and level ups), and a one-second start splash. The
+window, exe and installer carry a casino-chip icon, and the sound set grew from 5 to 8 synthesized
+cues (button ticks, achievement sparkle, paycheque, start chord). Every effect and every sound has
+its own switch in Settings.
+
 **Fixes** - clean-day farming (the counter only moves on real days), the in-round navigation lock
 (a keyboard shortcut could drop a hand that was still on the table), save robustness (one bad line
 no longer costs a run), and payout edge cases.
@@ -76,5 +83,5 @@ pip install PyQt6
 python gamble_gui.py
 ```
 
-38 unit tests: `python -m unittest discover -s tests`
+40 unit tests: `python -m unittest discover -s tests`
 Return-to-player of every game: `python simulate.py rtp`

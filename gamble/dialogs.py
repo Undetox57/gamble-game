@@ -172,7 +172,7 @@ class SettingsDialog(QDialog):
             self.cards.addItem(f'{name} cards', k)
         for k, name in LANGUAGES.items():
             self.lang.addItem(name, k)
-        self.effects = QCheckBox(tr('Visual effects (confetti, floating numbers)'))
+        self.effects = QCheckBox(tr('Visual effects (confetti, banners, toasts)'))
         self.sound = QCheckBox(tr('Sound effects (wins, losses, jackpots)'))
         self.log = QCheckBox(tr('Show message log'))
         grid.addWidget(self.fs, 0, 0, 1, 2)

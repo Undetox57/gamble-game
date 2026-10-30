@@ -54,6 +54,15 @@ TR = {'tr': {
     'SESSION': 'OTURUM',
     'LEVEL': 'SEVİYE',
 
+    # ---- D14: pop-up notifications (toasts, big-win banners)
+    'LEVEL UP!': 'SEVİYE ATLADIN!',
+    '+{b} TL bonus  •  +{m} mental health': '+{b} TL bonus  •  +{m} ruh sağlığı',
+    'ACHIEVEMENT UNLOCKED': 'BAŞARIM AÇILDI',
+    'NEW RECORD': 'YENİ REKOR',
+    '{d}  {score:+,} TL': '{d}  {score:+,} TL',
+    'BIG WIN  {d:+,} TL': 'BÜYÜK KAZANÇ  {d:+,} TL',
+    'JACKPOT  {d:+,} TL': 'JACKPOT  {d:+,} TL',
+
     # ---- trophy room (D11)
     '🏆  Trophy room': '🏆  Trofe Odası',
     'Trophy room': 'Trofe Odası',
@@ -315,7 +324,8 @@ TR = {'tr': {
     'Card size': 'Kart boyutu',
     'Language': 'Dil',
     'Fullscreen  (F11, Esc to leave)': 'Tam ekran  (F11, çıkmak için Esc)',
-    'Visual effects (confetti, floating numbers)': 'Görsel efektler (konfeti, uçan rakamlar)',
+    'Visual effects (confetti, banners, toasts)':
+        'Görsel efektler (konfeti, afişler, bildirimler)',
     'Sound effects (wins, losses, jackpots)': 'Ses efektleri (kazanç, kayıp, jackpot)',
     'Show message log': 'Mesaj kaydını göster',
     'KEYBOARD': 'KLAVYE',

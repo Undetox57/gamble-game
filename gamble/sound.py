@@ -73,6 +73,15 @@ def _build(name):
         return _seq(*[_sweep(f, f * 1.01, d, vol=0.34) for f, d in notes], gap=0.02)
     if name == 'streak':                   # ticking up, for the streak side bet
         return _seq(*[_sweep(700 + 90 * i, 780 + 90 * i, 0.06, vol=0.26) for i in range(4)], gap=0.02)
+    if name == 'ach':                      # a bright little sparkle for an unlocked achievement
+        return _seq(_sweep(1046, 1046, 0.05, vol=0.26), _sweep(1318, 1318, 0.05, vol=0.28),
+                    _sweep(1568, 2093, 0.24, vol=0.30), gap=0.03)
+    if name == 'coin':                     # coins landing: two bright metallic ticks
+        return _seq(_sweep(1864, 1864, 0.05, vol=0.24), _sweep(2489, 2349, 0.14, vol=0.26), gap=0.05)
+    if name == 'start':                    # a warm C-major swell for the start screen
+        return _mix(_sweep(262, 262, 0.55, vol=0.14, decay=1.1),
+                    _sweep(392, 392, 0.55, vol=0.13, decay=1.1),
+                    _sweep(523, 523, 0.55, vol=0.13, decay=1.1))
     return []
 
 

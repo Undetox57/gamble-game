@@ -8,6 +8,10 @@ sprint, both a race against your own net worth). On top of that a **goal chain**
 opens a higher one for the next run), a **trophy room**, a shareable **result card**, and a full
 English + Turkish interface.
 
+The presentation carries the moments too: sliding notification toasts for level ups, achievements
+and records, a **BIG WIN / JACKPOT banner** with confetti and a short screen shake, a start splash
+and eight synthesized sound cues - every effect and every sound has its own switch in Settings.
+
     pip install PyQt6
     python gamble_gui.py
 
@@ -43,7 +47,10 @@ next to `gamble_gui.py`. Old saves load fine; the console version can still read
       engine.py          economy and daily life (work, loans, shop, endings). No Qt.
       events.py          the random events
       style.py           stylesheet, themes, display settings
-      widgets.py         shared widgets (cards, chart, confetti)
+      widgets.py         shared widgets (cards, chart, confetti) + the casino-chip window icon
+      fx.py              visual effects: particles, toasts, banners, shake, start splash
+      sound.py           synthesized sound effects (no audio files ship)
+      i18n.py            English / Turkish interface strings
       games/             one page per game (base.py, basic.py, table.py, crash.py, plinko.py, hilo.py, mines.py, keno.py)
       pages.py           bank, jobs, shop, achievements, statistics, how to play
       dialogs.py         events, endings, settings, new game

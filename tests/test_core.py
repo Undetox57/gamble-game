@@ -717,5 +717,28 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(os.path.exists(config.SAVE_FILE), 'the simulator must not delete savegame.txt')
 
 
+class SoundTest(unittest.TestCase):
+    """D14: every synthesised cue exists, and the player stays a silent no-op otherwise."""
+
+    def test_all_sound_recipes_build_bounded_samples(self):
+        from gamble import sound
+        for name in ('win', 'lose', 'click', 'jackpot', 'streak', 'ach', 'coin', 'start'):
+            samples = sound._build(name)
+            self.assertTrue(samples, f'no samples for {name!r}')
+            self.assertTrue(all(-1.0 <= v <= 1.0 for v in samples), f'clipping in {name!r}')
+        self.assertEqual(sound._build('no_such_sound'), [])
+
+    def test_playing_is_safe_when_muted_or_unknown(self):
+        from gamble import sound
+        sound.play('no_such_sound')          # an unknown name is ignored, never an error
+        sound.set_enabled(False)
+        try:
+            sound.play('win')                # muted: nothing is built, nothing is played
+        finally:
+            sound.set_enabled(True)
+        path = sound._wav('ach')             # the achievement recipe compiles to a real .wav
+        self.assertTrue(path and os.path.exists(path))
+
+
 if __name__ == '__main__':
     unittest.main()

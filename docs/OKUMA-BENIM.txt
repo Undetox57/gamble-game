@@ -5,7 +5,9 @@ Ne bu?
     Bir kumarhane-yaşam simülasyonu: çalış, borçlan, kumar oyna, hedefe ulaş.
     16 oyun, iki turnuva modu (10 günlük klasik + 3 günlük sprint), tefeci (kara para),
     hedef zinciri, trofe odası, paylaşılabilir sonuç kartı, ~%92 ortalama ödeme (RTP),
-    6 farklı final. Arayüz Türkçe ve İngilizce (Ayarlar -> Dil).
+    6 farklı final. Seviye / başarım / rekor için anlık bildirimler, büyük kazanç
+    afişleri ve 8 ses efekti (hepsi Ayarlar'dan kapatılabilir).
+    Arayüz Türkçe ve İngilizce (Ayarlar -> Dil).
     Ücretsiz, MIT lisanslı, açık kaynak.
 
 

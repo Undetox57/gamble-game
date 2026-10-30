@@ -12,19 +12,20 @@ from PyQt6.QtWidgets import (QAbstractButton, QApplication, QFrame, QGraphicsOpa
                              QStackedWidget, QTextEdit, QVBoxLayout, QWidget)
 
 from . import config, share, sound
-from .config import (CATEGORIES, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET, GAME_HOTKEYS, GAME_NAMES, GAME_SUBTITLES,
+from .config import (ACH_BY_KEY, CATEGORIES, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET, DIFFICULTIES, GAME_HOTKEYS,
+                     GAME_NAMES, GAME_SUBTITLES,
                      GOAL_LADDER_MULTS, ITEM_BY_KEY, LEVEL_EXP, LOBBY_ORDER, TOURNAMENT_BONUS_RATE,
                      TOURNAMENT_DAYS, TOURNAMENT_ENTRY, TOURNAMENT_SPRINT_BONUS_CAP,
                      TOURNAMENT_SPRINT_BONUS_RATE, TOURNAMENT_SPRINT_DAYS, TOURNAMENT_SPRINT_ENTRY, UNLOCK,
                      goal_for)
 from .dialogs import EndingDialog, EventDialog, KeybindDialog, NewGameDialog, SettingsDialog, key_from_name
 from .engine import Engine
-from .fx import alive
+from .fx import alive, banner, intro, shake, toast
 from .games import GAMES
 from .i18n import current, set_lang, tr, txf
 from .pages import AchievementsPage, BankPage, HelpPage, JobsPage, ShopPage, StatsPage, TrophyPage
 from .style import ANIM_SPEEDS, CARD_SIZES, CATEGORY_ACCENTS, GAME_ICONS, TEXT_SCALES, Settings, build_style
-from .widgets import Button, Confetti, section, set_card_scale
+from .widgets import Button, Confetti, app_icon, section, set_card_scale
 
 K = Qt.Key
 DIGITS = [K.Key_1, K.Key_2, K.Key_3, K.Key_4, K.Key_5, K.Key_6, K.Key_7, K.Key_8, K.Key_9, K.Key_0]
@@ -35,6 +36,10 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle('Gamble Game')
         self.resize(1220, 860)
+        icon = app_icon()                              # D14: the chip is also the taskbar icon
+        if QApplication.instance() is not None:        # dialogs inherit the application icon
+            QApplication.instance().setWindowIcon(icon)
+        self.setWindowIcon(icon)
         self.settings = Settings()
         self.settings.load()
         set_lang(self.settings.lang)                  # D9: everything built below uses this language
@@ -52,6 +57,12 @@ class MainWindow(QMainWindow):
         self.log('Welcome to the Gamble Game!', 'warn')
         self.fresh_install = not os.path.exists(config.SAVE_FILE)
         err = self.state.load()
+        # D14: what the notification toasts have already seen - nothing replays at startup
+        self._last_level = self.state.level
+        self._ach_seen = set(self.meta.achievements)
+        self._tour_seen = dict(self.meta.tournaments)
+        self._sprint_seen = dict(self.meta.sprints)
+        self._last_sb = None
         self.engine.sync_goal_rung()                # D13: the meta chain decides the goal of this run
         if err:
             self.log(err, 'loss')
@@ -124,6 +135,9 @@ class MainWindow(QMainWindow):
 
     # ---- startup
     def startup(self):
+        if self.settings.effects and self.anim_factor() > 0:   # D14: a short start screen, then the game
+            intro(self.centralWidget(), tr('🎰  GAMBLE GAME'), tr('Welcome to the Gamble Game!'))
+            sound.play('start')
         if self.fresh_install:
             self.ask_new_game(first_time=True)
         elif not self.handle_endings():
@@ -484,6 +498,8 @@ class MainWindow(QMainWindow):
     def celebrate(self):
         if self.settings.effects and hasattr(self, 'confetti'):
             self.confetti.burst()
+            if not self.isFullScreen():                # D14: the window flinches on the big beats
+                shake(self)
         sound.play('jackpot')
 
     def set_balance(self, value):
@@ -613,9 +629,58 @@ class MainWindow(QMainWindow):
         color = {'info': '#d6d9e3', 'win': '#4cc38a', 'loss': '#ff6b6b', 'warn': '#f4c542'}.get(kind, '#d6d9e3')
         self.logbox.append(f'<span style="color:{color}">{html.escape(msg)}</span>')
 
+    def check_toasts(self):
+        """D14: pop-up cards for the moments the log alone does not celebrate - level ups,
+        unlocked achievements, new tournament records and the streak bet ticking up.
+        The snapshots are kept in step even when the effects are off, so switching them on
+        later never replays news the player already saw (or missed)."""
+        s = self.state
+        host = self.centralWidget()
+        fx = self.settings.effects and host is not None and alive(host)
+        old_lv = getattr(self, '_last_level', None)
+        if old_lv is None:
+            self._last_level = s.level
+        elif s.level != old_lv:
+            if s.level > old_lv and fx:
+                bonus = sum(25 * lv for lv in range(old_lv + 1, s.level + 1))   # the engine's per-level pay
+                mental = 10 * (s.level - old_lv)
+                toast(host, tr('LEVEL UP!'),
+                      txf('+{b} TL bonus  •  +{m} mental health', b=bonus, m=mental), color='#6c8cff')
+            self._last_level = s.level
+        seen = getattr(self, '_ach_seen', None)
+        if seen is None:
+            self._ach_seen = set(self.meta.achievements)
+        else:
+            for k in sorted(set(self.meta.achievements) - seen):
+                title, _desc, reward = ACH_BY_KEY.get(k, (k, '', 0))
+                if fx:
+                    toast(host, tr('ACHIEVEMENT UNLOCKED'),
+                          tr(title) + (f'  •  +{reward} exp' if reward else ''), color='#f4c542')
+                sound.play('ach')
+            self._ach_seen = set(self.meta.achievements)
+        for field, attr in (('tournaments', '_tour_seen'), ('sprints', '_sprint_seen')):
+            table = getattr(self.meta, field, {})
+            was = getattr(self, attr, None)
+            if was is None:
+                setattr(self, attr, dict(table))
+                continue
+            for diff, score in sorted(table.items()):
+                if score > was.get(diff, 0):
+                    if fx:
+                        toast(host, tr('NEW RECORD'),
+                              txf('{d}  {score:+,} TL', d=tr(DIFFICULTIES[diff]['name']), score=score),
+                              color='#3fc8e0')
+                    sound.play('ach')
+            setattr(self, attr, dict(table))
+        last_sb = getattr(self, '_last_sb', None)         # one soft tick per streak-bet step
+        if s.sb_stake and last_sb not in (None, s.sb_count):
+            sound.play('streak')
+        self._last_sb = s.sb_count if s.sb_stake else None
+
     def refresh(self):
         eng, s = self.engine, self.state
         eng.check_achievements()
+        self.check_toasts()                           # D14: level ups / achievements / records
         if self._last_balance is not None and s.balance != self._last_balance:
             self.flash_delta(s.balance - self._last_balance)
         self._last_balance = s.balance
@@ -870,6 +935,14 @@ class MainWindow(QMainWindow):
         if delta != 0:                                  # D3: a floating chip of the result
             self.balloon(f'{tr(GAME_NAMES[key])}   {delta:+,} TL',
                          '#f4c542' if 'jackpot' in tags else '#4cc38a' if delta > 0 else '#ff6b6b')
+        if self.settings.effects and ('jackpot' in tags or delta >= 1000):   # D14: the big moment
+            host = self.centralWidget()
+            if host is not None and alive(host):
+                jackpot = 'jackpot' in tags
+                banner(host, txf('JACKPOT  {d:+,} TL', d=delta) if jackpot
+                       else txf('BIG WIN  {d:+,} TL', d=delta),
+                       '#f4c542' if jackpot else '#4cc38a',
+                       size=round(36 * TEXT_SCALES[self.settings.text][1]))
 
     # ---- streak side bet (B6)
     def place_streak(self, target):
@@ -934,7 +1007,8 @@ class MainWindow(QMainWindow):
 
     # ---- life actions (the engine does the work)
     def go_work(self):
-        self.engine.go_work()
+        if self.engine.go_work():
+            sound.play('coin')                          # D14: the paycheque lands
         self.after_life_action()
 
     def pass_day(self):

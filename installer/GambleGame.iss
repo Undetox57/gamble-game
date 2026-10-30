@@ -48,6 +48,8 @@ UninstallDisplayName={#MyAppName}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+; the casino chip - the same art as the window icon (tools/make_icon.py)
+SetupIconFile=GambleGame.ico
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
