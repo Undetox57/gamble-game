@@ -148,6 +148,14 @@ class BankPage(QWidget):
 
     def refresh(self):
         s = self.app.state
+        # D15: everything this page draws hangs off this key - without it, opening the lobby
+        # after any action re-set a dozen widgets and re-laid-out the whole panel for nothing.
+        key = (current(), s.difficulty, s.balance, s.bank, s.bank_interest_cap, s.debt, s.credit_available,
+               s.credit_limit, s.debt_rate, s.shark_debt, s.shark_limit, s.shark_due, s.day,
+               s.diff["credit_per_level"])
+        if key == getattr(self, '_key', None):
+            return
+        self._key = key
         self.info.setText(txf('Wallet: {w} TL        Bank: {b} TL', w=f'{s.balance:,}', b=f'{s.bank:,.2f}'))
         self.interest_info.setText(
             txf('Your bank balance earns {p}% interest every day (max {m} TL per day at your level).',
@@ -838,4 +846,7 @@ class HelpPage(QWidget):
         lay.addWidget(back_button(app), 0, Qt.AlignmentFlag.AlignLeft)
 
     def refresh(self):
-        self.text.setText(help_html(self.app.state))
+        doc = help_html(self.app.state)
+        if doc != getattr(self, '_doc', None):        # D15: the same text re-set re-parses the whole
+            self._doc = doc                           # rich-text document and repaints the page
+            self.text.setText(doc)

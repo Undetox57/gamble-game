@@ -74,6 +74,35 @@ QTableWidget { background:#0f131b; alternate-background-color:rgba(255,255,255,0
         selection-background-color:#3a4560; selection-color:#e8eaf0; }
 QHeaderView::section { background:#1c2230; color:#f4c542; padding:6px; border:none; font-weight:700; }
 QToolTip { background:#1c2230; color:#e8eaf0; border:1px solid #3a4560; border-radius:6px; padding:6px 8px; font-size:13px; }
+/* D15: the controls Windows still draws in its own light style. Every colour below is a
+   BASE_COLORS entry, so the theme substitution above keeps working untouched. */
+QSpinBox::up-button, QDoubleSpinBox::up-button { subcontrol-origin:border; subcontrol-position:top right; width:22px;
+        border:none; border-left:1px solid #2a3248; border-bottom:1px solid #2a3248; border-top-right-radius:8px; background:#1c2230; }
+QSpinBox::down-button, QDoubleSpinBox::down-button { subcontrol-origin:border; subcontrol-position:bottom right; width:22px;
+        border:none; border-left:1px solid #2a3248; border-bottom-right-radius:8px; background:#1c2230; }
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover, QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover { background:#2a3348; }
+QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed, QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed { background:#1f2740; }
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow { width:8px; height:8px; image:none; border-left:4px solid transparent;
+        border-right:4px solid transparent; border-bottom:5px solid #f4c542; }
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow { width:8px; height:8px; image:none; border-left:4px solid transparent;
+        border-right:4px solid transparent; border-top:5px solid #f4c542; }
+QSpinBox:disabled, QDoubleSpinBox:disabled { background:#1a2030; color:#5a627a; border-color:#252c40; }
+QComboBox::drop-down { subcontrol-origin:border; subcontrol-position:center right; width:26px; border:none;
+        border-left:1px solid #2a3248; border-top-right-radius:8px; border-bottom-right-radius:8px; background:#1c2230; }
+QComboBox::drop-down:hover { background:#2a3348; }
+QComboBox::down-arrow { width:8px; height:8px; image:none; border-left:4px solid transparent;
+        border-right:4px solid transparent; border-top:5px solid #f4c542; }
+QComboBox:disabled { background:#1a2030; color:#5a627a; border-color:#252c40; }
+/* QMenu: the right-click menus (log, spinbox, table) used to open as a white Windows box. */
+QMenu { background:#1c2230; color:#e8eaf0; border:1px solid #3a4560; border-radius:8px; padding:5px; }
+QMenu::item { background:transparent; padding:6px 24px 6px 18px; border-radius:6px; }
+QMenu::item:selected { background:#d4a017; color:#1a1400; }
+QMenu::item:disabled { color:#5a627a; }
+QMenu::separator { height:1px; background:#2a3248; margin:4px 10px; }
+QTableCornerButton::section { background:#1c2230; border:1px solid #2a3248; border-radius:6px; }
+QAbstractScrollArea::corner { background:#0f131b; }
+QMessageBox { padding:10px; }
+QMessageBox QPushButton { min-width:96px; padding:8px 16px; }
 """
 
 

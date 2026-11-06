@@ -31,6 +31,19 @@ K = Qt.Key
 DIGITS = [K.Key_1, K.Key_2, K.Key_3, K.Key_4, K.Key_5, K.Key_6, K.Key_7, K.Key_8, K.Key_9, K.Key_0]
 
 
+def put_text(widget, text):
+    """D15: re-setting text that has not changed still resets the widget's document, its layout
+    and its repaint - refresh() passes dozens of these and most are unchanged on any one call."""
+    if widget.text() != text:
+        widget.setText(text)
+
+
+def put_skin(widget, sheet):
+    """D15: an identical stylesheet re-applied forces a full re-polish of the widget."""
+    if widget.styleSheet() != sheet:
+        widget.setStyleSheet(sheet)
+
+
 class MainWindow(QMainWindow):
     def __init__(self, autostart=True):
         super().__init__()
@@ -125,6 +138,8 @@ class MainWindow(QMainWindow):
         self.logbox = QTextEdit()
         self.logbox.setReadOnly(True)
         self.logbox.setFixedHeight(110)
+        self.logbox.document().setMaximumBlockCount(500)   # D15: the log is a tail - the document stops
+                                                           # growing forever
         root.addWidget(self.logbox)
         self.confetti = Confetti(central)
         for seq, fn in (('F11', self.toggle_fullscreen), ('F1', self.show_help), ('Ctrl+Q', self.close)):
@@ -423,7 +438,10 @@ class MainWindow(QMainWindow):
         st = self.settings
         if current() != st.lang:                       # D9: the language was switched in Settings
             return self.retranslate(st.lang)
-        QApplication.instance().setStyleSheet(build_style(st.theme, st.text))
+        style = build_style(st.theme, st.text)
+        if getattr(self, '_qss', None) != style:        # D15: an unchanged sheet re-applied restyles every
+            self._qss = style                           # widget in the app - the settings dialog hit this
+            QApplication.instance().setStyleSheet(style)  # on every single checkbox and combo box
         self.logbox.setVisible(st.show_log)
         self.side.setFixedWidth(round(280 + (TEXT_SCALES[st.text][1] - 1) * 200))
         sound.set_enabled(st.sound)                          # D5: sound effects on/off
@@ -435,7 +453,7 @@ class MainWindow(QMainWindow):
                 self.showFullScreen()
             elif not st.fullscreen and self.isFullScreen():
                 self.showNormal()
-        self.fs_btn.setText(tr('⛶  Exit fullscreen') if st.fullscreen else tr('⛶  Fullscreen'))
+        put_text(self.fs_btn, tr('⛶  Exit fullscreen') if st.fullscreen else tr('⛶  Fullscreen'))
         st.save()
 
     def retranslate(self, lang):
@@ -505,16 +523,21 @@ class MainWindow(QMainWindow):
     def set_balance(self, value):
         """D2: the wallet number rolls to its new value instead of jumping."""
         target = int(value)
-        if self._ticker is not None:
+        start = int(self._last_balance) if self._last_balance is not None else target
+        if self._ticker is not None:                 # D15: a roll caught mid-flight continues from the
+            try:                                     # number actually on screen, not from its old target
+                start = int(self.lbl_balance.text().replace(',', '').split()[0])
+            except (ValueError, IndexError):
+                pass
             self._ticker.stop()
             self._ticker.deleteLater()                # one animation per wallet roll, not one per session
             self._ticker = None
         if not (self.settings.effects and self.anim_factor() > 0 and self._last_balance is not None
-                and target != self._last_balance and alive(self.lbl_balance)):
+                and target != start and alive(self.lbl_balance)):
             self.lbl_balance.setText(f'{target:,} TL')
             return
         anim = QVariantAnimation(self)
-        anim.setStartValue(int(self._last_balance))
+        anim.setStartValue(start)
         anim.setEndValue(target)
         anim.setDuration(max(160, round(450 * self.anim_factor())))
         anim.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -683,32 +706,33 @@ class MainWindow(QMainWindow):
         self.check_toasts()                           # D14: level ups / achievements / records
         if self._last_balance is not None and s.balance != self._last_balance:
             self.flash_delta(s.balance - self._last_balance)
-        self._last_balance = s.balance
         lv = s.level
-        self.lbl_day.setText(txf('Day {n}', n=s.day))
-        self.lbl_job.setText(f'{s.diff["name"]} {tr("difficulty")}  •  {s.job_info["name"]}  •  '
-                             f'{self.engine.tenure_title()} ({txf("{n} days worked", n=s.worked_days)})')
+        put_text(self.lbl_day, txf('Day {n}', n=s.day))
+        put_text(self.lbl_job, f'{s.diff["name"]} {tr("difficulty")}  •  {s.job_info["name"]}  •  '
+                               f'{self.engine.tenure_title()} ({txf("{n} days worked", n=s.worked_days)})')
         self.set_balance(s.balance)                        # D2: rolls to the new number
-        self.lbl_bank.setText(txf('Bank: {n} TL', n=f'{s.bank:,.2f}'))
+        self._last_balance = s.balance                     # D15: the snapshot moves only now - set_balance
+                                                           # reads it as the number to roll from
+        put_text(self.lbl_bank, txf('Bank: {n} TL', n=f'{s.bank:,.2f}'))
         parts = []
         if s.debt > 0:
             parts.append(txf('Debt: {n} TL', n=f'{s.debt:,}'))
         if s.shark_debt > 0:                    # the loan shark's share, in red next to the bank debt
             parts.append(txf('Shark: {n} TL (collects day {d})', n=f'{s.shark_debt:,}', d=s.shark_due))
-        self.lbl_debt.setText('   •   '.join(parts))
+        put_text(self.lbl_debt, '   •   '.join(parts))
         self.lbl_debt.setVisible(bool(parts))
-        self.lbl_level.setText(txf('LEVEL {n}', n=lv))
+        put_text(self.lbl_level, txf('LEVEL {n}', n=lv))
         cur, need, is_max = eng.level_progress()
         self.bar_exp.setRange(0, need)
         self.bar_exp.setValue(need if is_max else cur)
         self.bar_exp.setFormat(txf('{n} exp (MAX)', n=s.exp) if is_max
                                else txf('{a} / {b} exp', a=s.exp, b=LEVEL_EXP[lv]))
         face = '😄' if s.mental > 80 else '🙂' if s.mental > 60 else '😐' if s.mental > 40 else '😟' if s.mental > 20 else '😵'
-        self.lbl_mental.setText(f'{tr("MENTAL HEALTH")}  {face}  {s.mental}/100')
+        put_text(self.lbl_mental, f'{tr("MENTAL HEALTH")}  {face}  {s.mental}/100')
         self.bar_mental.setValue(s.mental)
         color = '#4cc38a' if s.mental > 60 else '#e0a526' if s.mental > 30 else '#e5484d'
-        self.bar_mental.setStyleSheet(f'QProgressBar::chunk{{background:{color};border-radius:7px;}}')
-        self.lbl_streak.setText(f'{tr("WORK STREAK")}   {s.work_streak}/7')
+        put_skin(self.bar_mental, f'QProgressBar::chunk{{background:{color};border-radius:7px;}}')
+        put_text(self.lbl_streak, f'{tr("WORK STREAK")}   {s.work_streak}/7')
         self.bar_streak.setValue(min(7, s.work_streak))
         nw = s.net_worth
         self.bar_goal.setRange(0, s.goal)
@@ -716,38 +740,41 @@ class MainWindow(QMainWindow):
         self.bar_goal.setFormat(txf('{n} / {g} TL', n=f'{nw:,}', g=f'{s.goal:,}'))
         total_rungs = len(GOAL_LADDER_MULTS)        # D13: ◆ cleared, ○ still ahead of this run
         rungs = '◆' * s.goal_rung + '○' * (total_rungs - s.goal_rung)
-        self.lab_chain.setText(
-            rungs + '\n' + (txf('Rung {a}/{b}  •  next {g} TL', a=s.goal_rung, b=total_rungs,
-                                g=f'{goal_for(s.difficulty, s.goal_rung + 1):,}')
-                            if s.goal_rung < total_rungs else
-                            txf('Rung {a}/{b}  •  chain complete', a=total_rungs, b=total_rungs)))
-        self.lbl_nogamble.setText(txf('No Gamble Days: {a}/{b}', a=s.no_gamble_days, b=CLEAN_TARGET))
-        self.lbl_today.setText(tr('Games today: ') + '●' * s.games_today + '○' * max(0, 5 - s.games_today)
-                               + f'  {s.games_today}/5')
-        self.lbl_skipped.setText(txf('Skipped days (no games): {n}', n=s.skipped_days))
+        put_text(self.lab_chain,
+                 rungs + '\n' + (txf('Rung {a}/{b}  •  next {g} TL', a=s.goal_rung, b=total_rungs,
+                                     g=f'{goal_for(s.difficulty, s.goal_rung + 1):,}')
+                                 if s.goal_rung < total_rungs else
+                                 txf('Rung {a}/{b}  •  chain complete', a=total_rungs, b=total_rungs)))
+        put_text(self.lbl_nogamble, txf('No Gamble Days: {a}/{b}', a=s.no_gamble_days, b=CLEAN_TARGET))
+        put_text(self.lbl_today,
+                 tr('Games today: ') + '●' * s.games_today + '○' * max(0, 5 - s.games_today)
+                 + f'  {s.games_today}/5')
+        put_text(self.lbl_skipped, txf('Skipped days (no games): {n}', n=s.skipped_days))
         streaks = (f'{s.clean_streaks}/{CLEAN_STREAKS_FOR_ENDING}' if s.clean_streaks < CLEAN_STREAKS_FOR_ENDING
                    else f'{s.clean_streaks} ✓')
-        self.lbl_limits.setText(txf('Clean streaks: {s}   •   Credit limit: {c} TL',
-                                    s=streaks, c=f'{s.credit_limit:,}'))
+        put_text(self.lbl_limits,
+                 txf('Clean streaks: {s}   •   Credit limit: {c} TL',
+                     s=streaks, c=f'{s.credit_limit:,}'))
         owned = [f'{ITEM_BY_KEY[k]["name"]}' + (f' ×{n}' if ITEM_BY_KEY[k]['kind'] == 'consumable' else '')
                  for k, n in s.items.items() if n > 0 and k in ITEM_BY_KEY]
-        self.lbl_items.setText(tr('Items: ') + ', '.join(owned) if owned else '')
+        put_text(self.lbl_items, tr('Items: ') + ', '.join(owned) if owned else '')
         self.lbl_items.setVisible(bool(owned))
         status = []
         if s.out_days > 0:
             status.append(txf('Protected from mental health loss for {n} more day(s).', n=s.out_days))
         if s.work_cooldown > 0:
             status.append(txf('Too tired to work for {n} more day(s).', n=s.work_cooldown))
-        self.lbl_status.setText('\n'.join(status))
+        put_text(self.lbl_status, '\n'.join(status))
 
         if s.tour_active:                       # TOURNAMENT panel: running window vs. the entry button
             running = getattr(s, 'tour_mode', 'classic') == 'classic'
             day_no = min(s.day - s.tour_day + 1, TOURNAMENT_DAYS)   # day 1 on the day you entered
-            self.tour_btn.setText(txf('Tournament running  •  day {a}/{b}', a=day_no, b=TOURNAMENT_DAYS)
-                                  if running else txf('Enter tournament  •  {e} TL, {d} days',
-                                                      e=f'{TOURNAMENT_ENTRY:,}', d=TOURNAMENT_DAYS))
+            put_text(self.tour_btn,
+                     txf('Tournament running  •  day {a}/{b}', a=day_no, b=TOURNAMENT_DAYS)
+                     if running else txf('Enter tournament  •  {e} TL, {d} days',
+                                         e=f'{TOURNAMENT_ENTRY:,}', d=TOURNAMENT_DAYS))
             self.tour_btn.setEnabled(False if running else not s.tour_active and s.balance >= TOURNAMENT_ENTRY)
-            self.tour_lbl.setText(
+            put_text(self.tour_lbl,
                 txf('Started day {d} at {n} TL. Now {m} TL ({g} TL). Finish in the black on day {end} to '
                     'get the {e} TL entry back, plus {p}% of your growth.',
                     d=s.tour_day, n=f'{s.tour_net:,}', m=f'{s.net_worth:,}',
@@ -755,19 +782,20 @@ class MainWindow(QMainWindow):
                     e=f'{TOURNAMENT_ENTRY:,}', p=f'{TOURNAMENT_BONUS_RATE * 100:.0f}')
                 if running else self._classic_tour_text())
         else:
-            self.tour_btn.setText(txf('Enter tournament  •  {e} TL, {d} days',
-                                      e=f'{TOURNAMENT_ENTRY:,}', d=TOURNAMENT_DAYS))
+            put_text(self.tour_btn,
+                     txf('Enter tournament  •  {e} TL, {d} days',
+                         e=f'{TOURNAMENT_ENTRY:,}', d=TOURNAMENT_DAYS))
             self.tour_btn.setEnabled(not s.tour_active and s.balance >= TOURNAMENT_ENTRY)
-            self.tour_lbl.setText(self._classic_tour_text())
+            put_text(self.tour_lbl, self._classic_tour_text())
         self.tour_lbl.setVisible(True)
 
         sprinting = s.tour_active and getattr(s, 'tour_mode', 'classic') == 'sprint'   # D12
         if sprinting:
             day_no = min(s.day - s.tour_day + 1, TOURNAMENT_SPRINT_DAYS)
-            self.sprint_btn.setText(txf('Sprint running  •  day {a}/{b}', a=day_no,
-                                        b=TOURNAMENT_SPRINT_DAYS))
+            put_text(self.sprint_btn,
+                     txf('Sprint running  •  day {a}/{b}', a=day_no, b=TOURNAMENT_SPRINT_DAYS))
             self.sprint_btn.setEnabled(False)
-            self.sprint_lbl.setText(
+            put_text(self.sprint_lbl,
                 txf('Sprint: started day {d} at {n} TL. Now {m} TL ({g} TL). Finish in the black on day '
                     '{end} to get the {e} TL entry back, plus {p}% of your growth.',
                     d=s.tour_day, n=f'{s.tour_net:,}', m=f'{s.net_worth:,}',
@@ -775,10 +803,11 @@ class MainWindow(QMainWindow):
                     e=f'{TOURNAMENT_SPRINT_ENTRY:,}', p=f'{TOURNAMENT_SPRINT_BONUS_RATE * 100:.0f}'))
         else:
             sbest = getattr(self.meta, 'sprints', {}).get(s.difficulty, 0)
-            self.sprint_btn.setText(txf('Sprint  •  {e} TL, {d} days',
-                                        e=f'{TOURNAMENT_SPRINT_ENTRY:,}', d=TOURNAMENT_SPRINT_DAYS))
+            put_text(self.sprint_btn,
+                     txf('Sprint  •  {e} TL, {d} days',
+                         e=f'{TOURNAMENT_SPRINT_ENTRY:,}', d=TOURNAMENT_SPRINT_DAYS))
             self.sprint_btn.setEnabled(not s.tour_active and s.balance >= TOURNAMENT_SPRINT_ENTRY)
-            self.sprint_lbl.setText(
+            put_text(self.sprint_lbl,
                 txf('A 3-day dash against your own net worth: {p}% of the growth back on top, capped at '
                     '{c} TL. Only one tournament at a time. Best sprint on {diff}: {best}.',
                     p=f'{TOURNAMENT_SPRINT_BONUS_RATE * 100:.0f}', c=f'{TOURNAMENT_SPRINT_BONUS_CAP:,}',
@@ -786,21 +815,22 @@ class MainWindow(QMainWindow):
         self.sprint_lbl.setVisible(True)
 
         self.bet_spin.setRange(1, max(1, min(s.balance, s.max_bet, 2_000_000_000)))
-        self.lbl_maxbet.setText(tr('max bet: ') + (tr('no limit') if s.max_bet >= 10 ** 9
-                                                   else txf('{n} TL', n=f'{s.max_bet:,}')))
+        put_text(self.lbl_maxbet,
+                 tr('max bet: ') + (tr('no limit') if s.max_bet >= 10 ** 9
+                                    else txf('{n} TL', n=f'{s.max_bet:,}')))
         for k, b in self.game_btns.items():
             if lv >= UNLOCK[k]:
-                b.setText(f'{GAME_ICONS[k]}  {tr(GAME_NAMES[k])}   [{GAME_HOTKEYS[k]}]\n{tr(GAME_SUBTITLES[k])}')
+                put_text(b, f'{GAME_ICONS[k]}  {tr(GAME_NAMES[k])}   [{GAME_HOTKEYS[k]}]\n{tr(GAME_SUBTITLES[k])}')
                 b.setEnabled(s.balance >= 1)
             else:
-                b.setText(f'{GAME_ICONS[k]}  {tr(GAME_NAMES[k])}\n🔒 {txf("Unlocks at level {n}", n=UNLOCK[k])}')
+                put_text(b, f'{GAME_ICONS[k]}  {tr(GAME_NAMES[k])}\n🔒 {txf("Unlocks at level {n}", n=UNLOCK[k])}')
                 b.setEnabled(False)
         wk = self.keyname.get('work', 'W')
         if s.work_cooldown == 0:
-            self.work_btn.setText(f'{tr("Go to Work")}  [{wk}]\n{s.job_info["name"]}: +{eng.work_pay()} TL')
+            put_text(self.work_btn, f'{tr("Go to Work")}  [{wk}]\n{s.job_info["name"]}: +{eng.work_pay()} TL')
         else:
-            self.work_btn.setText(f'{tr("Go to Work")}  [{wk}]\n'
-                                  + txf('Too tired ({n} day(s))', n=s.work_cooldown))
+            put_text(self.work_btn, f'{tr("Go to Work")}  [{wk}]\n'
+                                    + txf('Too tired ({n} day(s))', n=s.work_cooldown))
         self.work_btn.setEnabled(s.work_cooldown == 0)
         self.out_btn.setEnabled(s.balance >= 100)
         self.streak_labels()
@@ -957,31 +987,31 @@ class MainWindow(QMainWindow):
         for target, b in self.sb_btns.items():
             mult = config.STREAK_BETS[target]
             odds = config.STREAK_P_MAX ** target
-            b.setText(txf('{n} in a row', n=target) + f'\n{mult:g}×  →  {int(stake * mult):,} TL'
-                      + (f'\n{odds * 100:.1f}% ' + tr('chance') if s.has('streak_book') else ''))
+            put_text(b, txf('{n} in a row', n=target) + f'\n{mult:g}×  →  {int(stake * mult):,} TL'
+                       + (f'\n{odds * 100:.1f}% ' + tr('chance') if s.has('streak_book') else ''))
             b.setEnabled(not s.sb_stake and stake <= s.balance)
         self.sb_spin.setEnabled(not s.sb_stake)
         if s.sb_stake:
-            self.sb_prog.setText(
+            put_text(self.sb_prog,
                 txf('RUNNING: {a}/{b} won  •  {s} TL at stake  •  pays {m:g}× = {v} TL  •  '
                     'a loss in a one-shot game drops it.',
                     a=s.sb_count, b=s.sb_target, s=f'{s.sb_stake:,}',
                     m=config.STREAK_BETS[s.sb_target],
                     v=f'{int(s.sb_stake * config.STREAK_BETS[s.sb_target]):,}'))
-            self.sb_prog.setStyleSheet('color:#f4c542;')
+            put_skin(self.sb_prog, 'color:#f4c542;')
             can_cash = s.has('streak_book') and s.sb_count > 0
             self.sb_cash.setVisible(can_cash)
             if can_cash:
                 value = self.engine.streak_cash_value()
-                self.sb_cash.setText(txf('CASH OUT NOW FOR {v} TL  (fair value, no gamble)',
-                                         v=f'{value:,}'))
+                put_text(self.sb_cash, txf('CASH OUT NOW FOR {v} TL  (fair value, no gamble)',
+                                           v=f'{value:,}'))
                 self.sb_cash.setEnabled(value > 0)
         else:
-            self.sb_prog.setText(
+            put_text(self.sb_prog,
                 tr('Win 3, 5, 7 or 10 one-shot games in a row to take the payout. The stake is paid up '
                    'front and cannot be refunded. Crash, Mines and Hi-Lo neither count nor break it; a '
                    'push is neutral.'))
-            self.sb_prog.setStyleSheet('')
+            put_skin(self.sb_prog, '')
             self.sb_cash.setVisible(False)
 
     def cash_streak(self):
