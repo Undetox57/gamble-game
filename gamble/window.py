@@ -64,6 +64,10 @@ class MainWindow(QMainWindow):
         self.game_page = None
         self._last_balance = None
         self._ticker = None                        # D2: the wallet number counts up instead of jumping
+        self._last_day = None                      # D16: a new day pops the day label
+        self._day_anim = None                      # D16: the pop currently running on it
+        self._trans = None                         # D16: the page fade currently running
+        self._bar_anims, self._bar_ranges = {}, {}  # D16: one tween + one scale snapshot per bar
         self.session = {'start': time.time(), 'games': 0, 'wins': 0, 'best': 0, 'net0': 0}
         self.build_ui()
 
@@ -95,6 +99,13 @@ class MainWindow(QMainWindow):
         self.game_page = None
         self._last_balance = None
         self._ticker = None
+        self._drop_transition()                    # D16: the fade belongs to the UI going away
+        for a in getattr(self, '_bar_anims', {}).values():
+            a.stop()
+        self._bar_anims, self._bar_ranges = {}, {}  # the bars themselves are about to be replaced
+        if getattr(self, '_day_anim', None) is not None:
+            self._day_anim.stop()
+        self._day_anim = None
         central = QWidget()
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
@@ -647,6 +658,129 @@ class MainWindow(QMainWindow):
         group.finished.connect(lbl.deleteLater)
         group.start()
 
+    # ---- D16: movement - page fades, tweened progress bars, the day pop
+    def _drop_transition(self):
+        """Stop the page fade that is running, if any, and leave no opacity effect behind."""
+        prev = getattr(self, '_trans', None)
+        if prev is None:
+            return
+        widget, effect, group = prev
+        self._trans = None
+        group.stop()
+        group.deleteLater()
+        if alive(widget):
+            widget.setGraphicsEffect(None)
+
+    def _transition_to(self, target):
+        """D16: the page that just arrived fades in and rises a few pixels instead of cutting
+        in. The opacity effect comes off the moment the animation ends, so no page keeps a
+        compositor attached to it after the move."""
+        self._drop_transition()
+        if not (self.settings.effects and self.anim_factor() > 0 and alive(target)):
+            return
+        effect = QGraphicsOpacityEffect(target)
+        target.setGraphicsEffect(effect)
+        end = target.pos()
+        rise = QPropertyAnimation(target, b'pos', target)
+        rise.setStartValue(end + QPoint(0, 14))
+        rise.setEndValue(end)
+        fade = QPropertyAnimation(effect, b'opacity', target)
+        fade.setStartValue(0.0)
+        fade.setEndValue(1.0)
+        ms = max(120, round(210 * self.anim_factor()))
+        for a in (rise, fade):
+            a.setDuration(ms)
+            a.setEasingCurve(QEasingCurve.Type.OutCubic)
+        group = QParallelAnimationGroup(self)
+        group.addAnimation(rise)
+        group.addAnimation(fade)
+        group.finished.connect(lambda g=group, w=target: self._end_transition(g, w))
+        self._trans = (target, effect, group)
+        group.start()
+
+    def _end_transition(self, group, widget):
+        if getattr(self, '_trans', None) is not None and self._trans[2] is group:
+            self._trans = None
+        if alive(widget):
+            widget.setGraphicsEffect(None)
+        group.deleteLater()
+
+    def tween_bar(self, bar, value):
+        """D16: a progress bar glides to its new value instead of snapping there. The first
+        time a bar is seen - and every time its scale changes - the value is set directly:
+        a tween across different scales would be meaningless."""
+        value = int(value)
+        anim = self._bar_anims.get(bar)
+        if not (self.settings.effects and self.anim_factor() > 0):
+            if anim is not None:
+                anim.stop()
+                anim.deleteLater()
+                del self._bar_anims[bar]
+            bar.setValue(value)
+            return
+        if self._bar_ranges.get(bar) != (bar.minimum(), bar.maximum()):
+            self._bar_ranges[bar] = (bar.minimum(), bar.maximum())
+            if anim is not None:
+                anim.stop()
+                anim.deleteLater()
+                del self._bar_anims[bar]
+            bar.setValue(value)
+            return
+        if anim is not None:
+            if anim.endValue() == value:
+                return                              # already gliding to exactly there
+            anim.stop()
+            anim.deleteLater()
+            del self._bar_anims[bar]
+        if bar.value() == value:
+            return
+        anim = QVariantAnimation(self)
+        anim.setStartValue(bar.value())
+        anim.setEndValue(value)
+        anim.setDuration(max(120, round(340 * self.anim_factor())))
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.valueChanged.connect(lambda v, b=bar: b.setValue(int(v)))
+
+        def done(v=value, b=bar, a=anim):
+            if alive(b):
+                b.setValue(v)                       # land exactly on the target
+            if self._bar_anims.get(b) is a:
+                del self._bar_anims[b]
+            a.deleteLater()
+
+        anim.finished.connect(done)
+        self._bar_anims[bar] = anim
+        anim.start()
+
+    def _day_pop(self):
+        """D16: the day label fades up from near-transparent, so the turn of time is visible
+        without stealing attention from the panel around it."""
+        lbl = self.lbl_day
+        if not alive(lbl):
+            return
+        prev = getattr(self, '_day_anim', None)
+        if prev is not None:
+            prev.stop()
+            prev.deleteLater()
+        effect = QGraphicsOpacityEffect(lbl)
+        lbl.setGraphicsEffect(effect)
+        fade = QPropertyAnimation(effect, b'opacity', lbl)
+        fade.setStartValue(0.1)
+        fade.setEndValue(1.0)
+        fade.setDuration(max(140, round(300 * self.anim_factor())))
+        fade.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        def done(l=lbl, a=fade):
+            if getattr(self, '_day_anim', None) is a:
+                self._day_anim = None
+            if alive(l):
+                l.setGraphicsEffect(None)
+            a.deleteLater()
+
+        fade.finished.connect(done)
+        self._day_anim = fade
+        fade.start()
+
     # ---- log and refresh
     def log(self, msg, kind='info'):
         color = {'info': '#d6d9e3', 'win': '#4cc38a', 'loss': '#ff6b6b', 'warn': '#f4c542'}.get(kind, '#d6d9e3')
@@ -704,6 +838,12 @@ class MainWindow(QMainWindow):
         eng, s = self.engine, self.state
         eng.check_achievements()
         self.check_toasts()                           # D14: level ups / achievements / records
+        if self._last_day is None:
+            self._last_day = s.day                    # D16: the first frame never pops
+        elif s.day != self._last_day:
+            self._last_day = s.day
+            if self.settings.effects and self.anim_factor() > 0:
+                self._day_pop()
         if self._last_balance is not None and s.balance != self._last_balance:
             self.flash_delta(s.balance - self._last_balance)
         lv = s.level
@@ -724,19 +864,19 @@ class MainWindow(QMainWindow):
         put_text(self.lbl_level, txf('LEVEL {n}', n=lv))
         cur, need, is_max = eng.level_progress()
         self.bar_exp.setRange(0, need)
-        self.bar_exp.setValue(need if is_max else cur)
+        self.tween_bar(self.bar_exp, need if is_max else cur)   # D16: glides instead of snapping
         self.bar_exp.setFormat(txf('{n} exp (MAX)', n=s.exp) if is_max
                                else txf('{a} / {b} exp', a=s.exp, b=LEVEL_EXP[lv]))
         face = '😄' if s.mental > 80 else '🙂' if s.mental > 60 else '😐' if s.mental > 40 else '😟' if s.mental > 20 else '😵'
         put_text(self.lbl_mental, f'{tr("MENTAL HEALTH")}  {face}  {s.mental}/100')
-        self.bar_mental.setValue(s.mental)
+        self.tween_bar(self.bar_mental, s.mental)     # D16
         color = '#4cc38a' if s.mental > 60 else '#e0a526' if s.mental > 30 else '#e5484d'
         put_skin(self.bar_mental, f'QProgressBar::chunk{{background:{color};border-radius:7px;}}')
         put_text(self.lbl_streak, f'{tr("WORK STREAK")}   {s.work_streak}/7')
-        self.bar_streak.setValue(min(7, s.work_streak))
+        self.tween_bar(self.bar_streak, min(7, s.work_streak))  # D16
         nw = s.net_worth
         self.bar_goal.setRange(0, s.goal)
-        self.bar_goal.setValue(max(0, min(s.goal, nw)))
+        self.tween_bar(self.bar_goal, max(0, min(s.goal, nw)))  # D16
         self.bar_goal.setFormat(txf('{n} / {g} TL', n=f'{nw:,}', g=f'{s.goal:,}'))
         total_rungs = len(GOAL_LADDER_MULTS)        # D13: ◆ cleared, ○ still ahead of this run
         rungs = '◆' * s.goal_rung + '○' * (total_rungs - s.goal_rung)
@@ -888,12 +1028,14 @@ class MainWindow(QMainWindow):
         self.game_page = w
         self.stack.addWidget(w)
         self.stack.setCurrentWidget(w)
+        self._transition_to(w)                      # D16: the table fades in like the other pages
         return True
 
     def show_lobby(self):
         if not self.leave_game_page():
             return self.log('Finish the hand first - the bet is still on the table.', 'warn')
         self.stack.setCurrentWidget(self.lobby)
+        self._transition_to(self.lobby)             # D16
         self.refresh()
         if not self.handle_endings():
             self.process_events()
@@ -912,7 +1054,9 @@ class MainWindow(QMainWindow):
         if self.round_running():                 # F1 / B / T ... during a round must not void it
             return self.log(tr('Finish the hand first - the bet is still on the table.'), 'warn')
         page.refresh()
-        self.stack.setCurrentWidget(self.page_wrap.get(page, page))
+        target = self.page_wrap.get(page, page)
+        self.stack.setCurrentWidget(target)
+        self._transition_to(target)                 # D16
 
     def show_bank(self):
         self.show_page(self.bank_page)
