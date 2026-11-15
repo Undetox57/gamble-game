@@ -11,8 +11,8 @@ sonra güncelleyin (komutlar en altta).
 | Durum | Gönderilecek | Not |
 |---|---|---|
 | Hızlı deneme (tek dosya) | `dist\GambleGame.exe` (35.5 MB) | Tek dosya, çift tıkla açılır. En çok yanlış alarm alan sürüm. |
-| **Önerilen** (en temiz) | `dist\GambleGame-1.1.2-win64.zip` (35.5 MB) | Klasör sürümü + `OKUMA-BENIM.txt` + `LICENSE` içerir. |
-| **Önerilen** (kurulumlu) | `installer\Output\GambleGame-1.1.2-Setup.exe` (26 MB) | Sihirbaz, kısayol, kaldırma. Yönetici yetkisi istemez. |
+| **Önerilen** (en temiz) | `dist\GambleGame-1.1.3-win64.zip` (35.5 MB) | Klasör sürümü + `OKUMA-BENIM.txt` + `LICENSE` içerir. |
+| **Önerilen** (kurulumlu) | `installer\Output\GambleGame-1.1.3-Setup.exe` (26 MB) | Sihirbaz, kısayol, kaldırma. Yönetici yetkisi istemez. |
 
 Hiçbirinde Python/PyQt6 kurulumu gerekmez.
 
@@ -115,23 +115,23 @@ signtool sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /a GambleG
 ## 5. Hash'leri güncelleme
 
 ```powershell
-Get-FileHash dist\GambleGame-1.1.2-win64.zip,
-             installer\Output\GambleGame-1.1.2-Setup.exe,
+Get-FileHash dist\GambleGame-1.1.3-win64.zip,
+             installer\Output\GambleGame-1.1.3-Setup.exe,
              dist\GambleGame.exe -Algorithm SHA256 |
   ForEach-Object { "{0}  {1}" -f $_.Hash, (Split-Path $_.Path -Leaf) }
 ```
 
-### Güncel hash'ler (1.1.2)
+### Güncel hash'ler (1.1.3)
 
 ```
-8CB32402748E68A1D7F6476517858B33AAECDB3854C2B8764BE40C90FAA4C68A  GambleGame-1.1.2-win64.zip
-7A6354BEFDC65C5AC6FB5925809B07E6790A67FF5FF3FD0EEFE44F196BA69D07  GambleGame-1.1.2-Setup.exe
-B013AFEE073BAF2A0FFA09FF68F4EF00EC3849D09C1EE67650EE2CC0CD121779  GambleGame.exe (onefile)
-C85BB16CA802E75C57D00B9C6B23A86E4C9250EB5D0AC42CD4CB364C5D0AA978  GambleGame\GambleGame.exe (onedir)
+749975B71083EC26DB18B5DD60FC4531D6C666E2A80890545C399A9ABF24CE57  GambleGame-1.1.3-win64.zip
+EEF0F70AC0BC39122155578EC26878B8F710B314890F58C6DB9CA1A3310CDFAF  GambleGame-1.1.3-Setup.exe
+4AFA21E84F84260149965873A51EC6A0893E3B11BF76EC9C3644ADBB862F18F5  GambleGame.exe (onefile)
+14268BF08A25E54685B90DDBFF5FF2CACEC37C9A81B68736D4DCFBFDA41CA97A  GambleGame\GambleGame.exe (onedir)
 ```
 
-1.1.1, 1.1.0 ve 1.0.0 sürümlerinin hash'leri `RELEASE-1.1.1.md` / `RELEASE-1.1.0.md` /
-`RELEASE-1.0.0.md` içinde duruyor (eski sürümü tanımlarken oraya bak).
+1.1.2, 1.1.1, 1.1.0 ve 1.0.0 sürümlerinin hash'leri `RELEASE-1.1.2.md` / `RELEASE-1.1.1.md` /
+`RELEASE-1.1.0.md` / `RELEASE-1.0.0.md` içinde duruyor (eski sürümü tanımlarken oraya bak).
 
 > Bu dosyada yazan hash'ler **hazırlanan** dosyalara aittir. Oyun kodu
 > değişip yeniden derlendiğinde hepsi değişir; bildirim göndermeden önce
@@ -157,5 +157,5 @@ Copy-Item docs\OKUMA-BENIM.txt, LICENSE -Destination dist\GambleGame
 & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\GambleGame.iss
 
 # 4) zip
-Compress-Archive -Path dist\GambleGame -DestinationPath dist\GambleGame-1.1.2-win64.zip -CompressionLevel Optimal
+Compress-Archive -Path dist\GambleGame -DestinationPath dist\GambleGame-1.1.3-win64.zip -CompressionLevel Optimal
 ```
