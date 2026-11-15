@@ -3,12 +3,13 @@ import math
 import random
 
 from PyQt6.QtCore import QPointF, QRectF, Qt, QTimer
-from PyQt6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPen, QPolygonF, QPixmap
+from PyQt6.QtGui import (QColor, QFont, QIcon, QLinearGradient, QPainter, QPainterPath, QPen,
+                         QPolygonF, QPixmap)
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
 from . import sound
 from .i18n import tr
-from .rules import RED          # noqa: F401  (card colours)
+from .rules import RANK_STR, RED          # noqa: F401  (card colours and rank labels)
 
 AC = Qt.AlignmentFlag.AlignCenter
 CARD_SCALE = 1.0                       # D7: cards are drawn at this fraction of their normal size
@@ -74,6 +75,8 @@ class LineChart(QWidget):
 
     def __init__(self):
         super().__init__()
+        self.setObjectName('netChart')           # D17: a themed panel instead of a painted black box
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.points = []
         self.goal = None
         self.setMinimumHeight(200)
@@ -97,9 +100,6 @@ class LineChart(QWidget):
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(0, 0, 0, 70))
-        p.drawRoundedRect(QRectF(self.rect()), 10, 10)
         font = QFont(p.font())
         font.setPointSize(9)
         p.setFont(font)
@@ -188,12 +188,118 @@ def scaled(size=(68, 98)):
     return (max(36, round(size[0] * CARD_SCALE)), max(52, round(size[1] * CARD_SCALE)))
 
 
+def draw_card(p, w, h, card, checked=False):
+    """D17: one painter for every playing card in the game. `card` is a (rank, suit) pair or
+    None for face-down; `checked` gives the gold frame of a poker card marked for a change.
+
+    A card is a white gradient body with a drop shadow tucked under its bottom-right corner,
+    a hairline inside the border, the rank and suit centred and a tiny pip in each corner.
+    The back is navy with a white frame, a clipped diagonal lattice and a star emblem.
+    Everything is drawn in local coordinates - the caller only decides where the card sits."""
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    r = max(6, round(min(w, h) * 0.10))
+    body = QRectF(0, 0, w - 3, h - 4)                # the shadow gets the bottom-right strip
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor(0, 0, 0, 90))
+    p.drawRoundedRect(body.translated(3, 4), r, r)
+    if card is None:
+        grad = QLinearGradient(0, 0, w, h)
+        grad.setColorAt(0.0, QColor('#2f4d8f'))
+        grad.setColorAt(1.0, QColor('#1c2f5e'))
+        p.setBrush(grad)
+        p.setPen(QPen(QColor('#e8eaf0'), max(1, round(2 * w / 68))))
+        p.drawRoundedRect(body, r, r)
+        inner = body.adjusted(5, 5, -5, -5)
+        p.save()                                      # the lattice, clipped inside the frame
+        path = QPainterPath()
+        path.addRoundedRect(inner, r * 0.7, r * 0.7)
+        p.setClipPath(path)
+        p.setPen(QPen(QColor(255, 255, 255, 26), 1))
+        step = max(7, round(w / 9))
+        for x in range(-h, w + h, step):
+            p.drawLine(QPointF(x, h), QPointF(x + h, 0))
+            p.drawLine(QPointF(x, 0), QPointF(x + h, h))
+        p.restore()
+        p.setPen(QPen(QColor(232, 234, 240, 170), 1))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawRoundedRect(inner, r * 0.7, r * 0.7)
+        cx, cy = body.center().x(), body.center().y()  # the star emblem in a ring
+        rad = min(w, h) * 0.20
+        p.setPen(QPen(QColor('#8fb0ff'), max(1.5, w / 40)))
+        p.setBrush(QColor(255, 255, 255, 20))
+        p.drawEllipse(QPointF(cx, cy), rad, rad)
+        font = QFont(p.font())
+        font.setPixelSize(max(12, round(rad * 1.05)))
+        font.setBold(True)
+        p.setFont(font)
+        p.setPen(QColor('#dce8ff'))
+        p.drawText(QRectF(cx - rad, cy - rad, rad * 2, rad * 2), AC, '★')
+        return
+    text, suit = card
+    rank = RANK_STR.get(text, text)                   # poker decks carry ints, the rest strings
+    color = QColor('#c62828') if suit in RED else QColor('#111111')
+    scale = w / 68
+    grad = QLinearGradient(0, 0, 0, h)
+    grad.setColorAt(0.0, QColor('#ffffff'))
+    grad.setColorAt(1.0, QColor('#eceff4'))
+    p.setBrush(grad)
+    p.setPen(QPen(QColor('#f4c542') if checked else QColor('#cfcfcf'),
+                  max(2, round(3 * scale)) if checked else max(1, round(scale))))
+    p.drawRoundedRect(body, r, r)
+    p.setPen(QPen(QColor(255, 255, 255, 150), 1))     # the inner hairline
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawRoundedRect(body.adjusted(1.5, 1.5, -1.5, -1.5), r - 1, r - 1)
+    font = QFont(p.font())                            # the rank and the suit, centred
+    font.setPixelSize(max(10, round(22 * scale)))
+    font.setBold(True)
+    p.setFont(font)
+    p.setPen(color)
+    p.drawText(body, Qt.AlignmentFlag.AlignCenter, f'{rank}\n{suit}')
+    fs_pip = max(7, round(9 * scale))                 # a tiny pip in each corner
+    pip = QFont(p.font())
+    pip.setPixelSize(fs_pip)
+    p.setFont(pip)
+    m = max(3, round(4 * scale))
+    p.drawText(QRectF(body.x() + m, body.y() + m, body.width() / 2, fs_pip + 2),
+               Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, str(suit))
+    p.save()
+    p.translate(body.x() + body.width() - m, body.y() + body.height() - m)
+    p.rotate(180)
+    p.drawText(QRectF(0, 0, body.width() / 2, fs_pip + 2),
+               Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, str(suit))
+    p.restore()
+
+
+class CardFace(QLabel):
+    """D17: a card label that paints itself with draw_card instead of faking the whole card
+    with a stylesheet."""
+
+    def __init__(self, card=None, size=(68, 98)):
+        super().__init__()
+        self.setAlignment(AC)
+        self._card = 'unset'
+        self.set_card(card, size)
+
+    def set_card(self, card, size=(68, 98)):
+        self.setFixedSize(*scaled(size))
+        self._card = card                        # so callers can skip repainting an unchanged card
+        self.update()
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        draw_card(p, self.width(), self.height(), self._card)
+        p.end()
+
+
 def paint_card(lbl, card, size=(68, 98)):
     """Draw `card` (a (text, suit) pair, or None for face-down) onto an existing card label.
 
     The box is re-sized here too, so the "Card size" setting reaches cards that were already
     dealt (and the Hi-Lo card, which is built once and only ever repainted)."""
     lbl.setFixedSize(*scaled(size))
+    if isinstance(lbl, CardFace):               # D17: self-painting, no stylesheet involved
+        lbl.set_card(card, size)
+        return lbl
     w, _h = scaled(size)
     scale = w / 68
     fs = max(10, round(22 * scale))
@@ -218,11 +324,28 @@ def paint_card(lbl, card, size=(68, 98)):
 
 
 def make_card(card, size=(68, 98)):
-    """card = (text, suit) or None for a face-down card."""
-    lbl = QLabel()
-    lbl.setFixedSize(*scaled(size))
-    lbl.setAlignment(AC)
-    return paint_card(lbl, card, size)
+    """card = (text, suit) or None for a face-down card. D17: a self-painting CardFace."""
+    return CardFace(card, size)
+
+
+class PokerCard(Button):
+    """D17: the poker hand's own cards as buttons - the same draw_card as every other card on
+    the table, with a gold frame on the ones marked for a change."""
+
+    def __init__(self, card=None, size=(76, 108)):
+        super().__init__()
+        self._card = 'unset'
+        self.set_card(card, size)
+
+    def set_card(self, card, size=(76, 108)):
+        self.setFixedSize(*scaled(size))
+        self._card = card
+        self.update()
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        draw_card(p, self.width(), self.height(), self._card, checked=self.isChecked())
+        p.end()
 
 
 class CardRow(QWidget):
@@ -301,9 +424,11 @@ class Confetti(QWidget):
         cx, cy = self.width() / 2, self.height() * 0.3
         for _ in range(n):
             ang, speed = random.uniform(0, 2 * math.pi), random.uniform(3, 11)
+            # D17: a 10th field - the shape this piece is: 0 streamer, 1 dot, 2 chip
+            shape = random.choices((0, 1, 2), weights=(45, 30, 25))[0]
             self.parts.append([cx, cy, math.cos(ang) * speed, math.sin(ang) * speed - 4,
                                random.choice(self.COLORS), random.uniform(6, 11), 90 + random.randint(0, 40),
-                               random.uniform(0, 360), random.uniform(-14, 14)])
+                               random.uniform(0, 360), random.uniform(-14, 14), shape])
         if not self.timer.isActive():
             self.timer.start(16)
 
@@ -324,11 +449,55 @@ class Confetti(QWidget):
     def paintEvent(self, _event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        for x, y, _vx, _vy, color, size, life, angle, _spin in self.parts:
+        for x, y, _vx, _vy, color, size, life, angle, _spin, shape in self.parts:
             c = QColor(color)
             c.setAlphaF(min(1.0, life / 30))
             painter.save()
             painter.translate(x + size / 2, y + size * 0.3)
             painter.rotate(angle)
-            painter.fillRect(QRectF(-size / 2, -size * 0.3, size, size * 0.6), c)
+            if shape == 1:                            # a dot
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(c)
+                painter.drawEllipse(QPointF(0, 0), size * 0.42, size * 0.42)
+            elif shape == 2:                          # a casino chip: a disc with a white ring
+                painter.setPen(QPen(QColor(255, 255, 255, max(40, int(c.alpha() * 0.7))),
+                                    max(1, size * 0.12)))
+                painter.setBrush(c)
+                painter.drawEllipse(QPointF(0, 0), size * 0.45, size * 0.45)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawEllipse(QPointF(0, 0), size * 0.2, size * 0.2)
+            else:                                     # the classic streamer
+                painter.fillRect(QRectF(-size / 2, -size * 0.3, size, size * 0.6), c)
             painter.restore()
+
+
+class Watermark(QWidget):
+    """D17: a field of very faint, oversized suit glyphs across the table felt - casino-table
+    texture drawn behind everything. Deaf to the mouse; only exists with effects on."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        fs = max(40, min(150, self.height() // 3))
+        font = QFont(p.font())
+        font.setPixelSize(fs)
+        p.setFont(font)
+        w, h = self.width(), self.height()
+        step_x, step_y = fs * 2.0, fs * 2.2
+        cols = max(1, (w - fs) // int(step_x) + 1)
+        rows = max(1, (h - fs) // int(step_y) + 1)
+        ox = (w - (cols - 1) * step_x) / 2
+        oy = (h - (rows - 1) * step_y) / 2
+        suits = (('♠', QColor(255, 255, 255, 22)), ('♣', QColor(255, 255, 255, 22)),
+                 ('♥', QColor(255, 110, 110, 30)), ('♦', QColor(255, 110, 110, 30)))
+        for r in range(rows):
+            for c in range(cols):
+                glyph, color = suits[(r * 2 + c) % 4]
+                p.setPen(color)
+                x, y = ox + c * step_x, oy + r * step_y
+                p.drawText(QRectF(x - step_x / 2, y - step_y / 2, step_x, step_y), AC, glyph)
+        p.end()

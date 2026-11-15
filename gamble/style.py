@@ -17,7 +17,12 @@ QLabel { background:transparent; }
 #appTitle { font-size:24px; font-weight:800; color:#f4c542; letter-spacing:2px; }
 #gameTitle { font-size:22px; font-weight:700; color:#f4c542; }
 #betTag { font-size:16px; font-weight:700; color:#9ad1ff; }
-#section { font-size:12px; font-weight:800; color:#8b93a8; letter-spacing:1px; border-left:3px solid #d4a017; padding-left:8px; }
+/* D17: section headers are pills now - a dark lozenge with gold text instead of a bare
+   grey caption with a bar. Every colour is a BASE_COLORS entry (theme substitution). */
+#section { font-size:12px; font-weight:800; color:#f4c542; letter-spacing:1px; background:#141821;
+        border:1px solid #2a3248; border-radius:11px; padding:4px 14px; }
+/* D17: the net-worth chart gets a real panel behind it instead of a painted-on black box. */
+#netChart { background:#1c2230; border:1px solid #2a3248; border-radius:10px; }
 #bigMoney { font-size:30px; font-weight:800; color:#f4c542; }
 #bigDay { font-size:22px; font-weight:800; }
 #bank { font-size:16px; color:#9ad1ff; font-weight:600; }

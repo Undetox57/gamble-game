@@ -5,8 +5,8 @@ from PyQt6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, QTimer
 from PyQt6.QtWidgets import QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ..config import GAME_NAMES
-from ..fx import FxOverlay, flash_css, float_text
-from ..widgets import Button, centered
+from ..fx import FxOverlay, alive, flash_css, float_text
+from ..widgets import Button, Watermark, centered
 
 K = Qt.Key
 
@@ -39,6 +39,11 @@ class BaseGame(QWidget):
         self.felt = QFrame()
         self.felt.setObjectName('felt')
         self.fx = FxOverlay(self.felt)          # particles / flashes live on the table felt
+        # D17: a faint suit-glyph field behind everything - only with effects on, and only
+        # when the felt knows how big it is (resizeEvent places it).
+        self.watermark = Watermark(self.felt) if self.effects_on() else None
+        if self.watermark is not None:
+            self.watermark.lower()
         self.body = QVBoxLayout(self.felt)
         self.body.setContentsMargins(20, 20, 20, 20)
         self.body.setSpacing(12)
@@ -57,8 +62,21 @@ class BaseGame(QWidget):
         foot.addWidget(self.again_btn)
         outer.addLayout(foot)
         self.build()
+        if self.watermark is not None:
+            QTimer.singleShot(0, self._refit_watermark)   # the first real size arrives with the layout
         for k in (K.Key_Return, K.Key_Enter, K.Key_Space):     # last in line: start the next round
             self.bind(k, self.again_btn)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if getattr(self, 'watermark', None) is not None:
+            QTimer.singleShot(0, self._refit_watermark)   # let the layout finish before measuring
+
+    def _refit_watermark(self):
+        """D17: the glyph field always covers the felt exactly, however the window was resized."""
+        wm, felt = getattr(self, 'watermark', None), getattr(self, 'felt', None)
+        if wm is not None and felt is not None and alive(wm) and alive(felt):
+            wm.setGeometry(felt.rect())
 
     @property
     def rng(self):

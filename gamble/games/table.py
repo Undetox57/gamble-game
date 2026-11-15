@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidg
 
 from .. import rules
 from ..fx import VRNG, fade_flip, fade_in
-from ..widgets import AC, Button, CardRow, centered, paint, paint_card
+from ..widgets import AC, Button, CardRow, PokerCard, centered, paint, paint_card
 from .base import BaseGame, K, digit_key
 
 CHIP_COLORS = {'black': '#1a1a1a', 'red': '#c62828', 'green': '#2e9e5b'}
@@ -373,20 +373,8 @@ class BlackjackGame(BaseGame):
 class PokerGame(BaseGame):
     key, title = 'poker', 'Poker (5 Card Draw)'
 
-    @staticmethod
-    def rs(r):
-        return rules.RANK_STR.get(r, str(r))
-
     def style_card(self, b, c):
-        col = '#c62828' if c[1] in rules.RED else '#111111'
-        b.setText(f'{self.rs(c[0])}\n{c[1]}')
-        b.setStyleSheet(
-            'QPushButton{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 #ffffff,stop:1 #eceff4);'
-            f'color:{col};border:2px solid #cfcfcf;border-radius:10px;font-size:24px;font-weight:700;padding:0;}}'
-            'QPushButton:checked{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 #fff6d0,stop:1 #ffe08a);'
-            'border:3px solid #d4a017;}'
-            f'QPushButton:disabled{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 #ffffff,stop:1 #eceff4);'
-            f'color:{col};border:2px solid #cfcfcf;}}')
+        b.set_card(c)                               # D17: the card paints itself now
 
     def build(self):
         self.deck = rules.new_deck_poker(self.rng)
@@ -406,10 +394,8 @@ class PokerGame(BaseGame):
         self.btns, self.tags = [], []
         for i, c in enumerate(self.player):
             col = QVBoxLayout()
-            b = Button()
+            b = PokerCard(c)
             b.setCheckable(True)
-            b.setFixedSize(76, 108)
-            self.style_card(b, c)
             b.toggled.connect(lambda _c, i=i: self.on_toggle(i))
             tag = centered('KEEP', 'hint')
             col.addWidget(b)
