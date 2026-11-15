@@ -2,7 +2,7 @@
 import math
 
 from PyQt6.QtCore import QPointF, QPoint, QRectF, Qt, QTimer
-from PyQt6.QtGui import QColor, QConicalGradient, QLinearGradient, QPainter, QPen, QPolygonF
+from PyQt6.QtGui import QColor, QConicalGradient, QLinearGradient, QPainter, QPen, QPixmap, QPolygonF
 from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from .. import rules
@@ -663,6 +663,10 @@ class HorseTrack(QWidget):
         self.dust = []                  # [x, y, r, life]
         self.crowd = [(VRNG.uniform(0, 1), VRNG.randint(0, 2), VRNG.choice(
             ['#e8eaf0', '#f4c542', '#4cc38a', '#ff6b6b', '#6c8cff', '#b06ee0'])) for _ in range(150)]
+        self._scenery_pm = None      # D18: the static background, painted once per size
+        self._scenery_key = None
+        self._plates_pm = None       # D18: the name plates, a layer above the start gate
+        self._plates_key = None
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
 
@@ -696,62 +700,97 @@ class HorseTrack(QWidget):
         self.update()
 
     # ---- drawing
+    def _scenery(self, w, h):
+        """D18: sky, grandstand, turf, lanes, finish line and the name plates never change
+        between frames, so they are painted once per size into a pixmap - a full race frame
+        then only draws the crowd, the gate, the dust and the five horses."""
+        key = (w, h, self.devicePixelRatioF())
+        if self._scenery_pm is None or self._scenery_key != key:
+            dpr = self.devicePixelRatioF()
+            pm = QPixmap(int(round(w * dpr)), int(round(h * dpr)))
+            pm.setDevicePixelRatio(dpr)
+            pm.fill(Qt.GlobalColor.transparent)
+            p = QPainter(pm)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            sky = QLinearGradient(0, 0, 0, 74)
+            sky.setColorAt(0, QColor('#101728'))
+            sky.setColorAt(1, QColor('#1b2540'))
+            p.fillRect(QRectF(0, 0, w, 74), sky)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor('#232b3d'))
+            p.drawRect(QRectF(0, 34, w, 40))
+            p.setPen(QPen(QColor('#d4a017'), 3))
+            p.drawLine(QPointF(0, 74), QPointF(w, 74))
+            # turf and dirt
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor('#16351f'))
+            p.drawRect(QRectF(0, 75, w, h - 75))
+            dirt = QLinearGradient(0, 96, 0, h)
+            dirt.setColorAt(0, QColor('#8a6a45'))
+            dirt.setColorAt(1, QColor('#5d452c'))
+            p.setBrush(dirt)
+            p.drawRect(QRectF(0, 96, w, h - 96))
+            lane_top, lane_h = 100, (h - 104) / 5
+            p.setPen(QPen(QColor(255, 255, 255, 26), 1, Qt.PenStyle.DashLine))
+            for i in range(1, 5):
+                y = lane_top + i * lane_h
+                p.drawLine(QPointF(0, y), QPointF(w, y))
+            x1 = w - 74                                     # finish line + winning post
+            p.setBrush(QColor('#f4c542'))                   # (still the lanes' faint dash pen,
+            p.drawRect(QRectF(x1 - 4, 90, 8, h - 94))       # exactly as the old code drew it)
+            for r in range(int((h - 100) // 12)):
+                for c in range(2):
+                    p.setBrush(QColor('#111111') if (r + c) % 2 else QColor('#e8eaf0'))
+                    p.drawRect(QRectF(x1 + 6 + c * 9, 100 + r * 12, 9, 12))
+            p.end()
+            self._scenery_pm, self._scenery_key = pm, key
+        return self._scenery_pm
+
+    def _plates(self, w, h):
+        """D18: the five name plates get their own layer because they are drawn over the
+        start gate - the gate rises between the track behind it and the plates on top."""
+        key = (w, h, self.devicePixelRatioF())
+        if self._plates_pm is None or self._plates_key != key:
+            dpr = self.devicePixelRatioF()
+            pm = QPixmap(int(round(w * dpr)), int(round(h * dpr)))
+            pm.setDevicePixelRatio(dpr)
+            pm.fill(Qt.GlobalColor.transparent)
+            p = QPainter(pm)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            lane_top, lane_h = 100, (h - 104) / 5
+            for i in range(5):
+                y = lane_top + lane_h * (i + 0.5)
+                p.setBrush(QColor('#0e1119'))
+                p.setPen(QPen(QColor('#39415a'), 1))
+                p.drawRoundedRect(QRectF(8, y - 15, 74, 30), 8, 8)
+                p.setPen(QColor(self.SILKS[i]))
+                f = p.font()
+                f.setBold(True)
+                f.setPointSize(15)
+                p.setFont(f)
+                p.drawText(QRectF(8, y - 15, 74, 30), AC, f'{i + 1}  {rules.RACE_NAMES[i]}')
+            p.end()
+            self._plates_pm, self._plates_key = pm, key
+        return self._plates_pm
+
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
-        # sky and grandstand
-        sky = QLinearGradient(0, 0, 0, 74)
-        sky.setColorAt(0, QColor('#101728'))
-        sky.setColorAt(1, QColor('#1b2540'))
-        p.fillRect(QRectF(0, 0, w, 74), sky)
+        p.drawPixmap(0, 0, self._scenery(w, h))            # the whole background, one image
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor('#232b3d'))
-        p.drawRect(QRectF(0, 34, w, 40))
         for cx, row, col in self.crowd:                    # a bobbing crowd of dots
             bob = 2.0 * abs(math.sin(self.phase[0] * 0.15 + cx * 30))
             p.setBrush(QColor(col))
             p.drawEllipse(QPointF(cx * w, 44 + row * 9 - bob), 2.4, 2.4)
-        p.setPen(QPen(QColor('#d4a017'), 3))
-        p.drawLine(QPointF(0, 74), QPointF(w, 74))
-        # turf and dirt
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor('#16351f'))
-        p.drawRect(QRectF(0, 75, w, h - 75))
-        dirt = QLinearGradient(0, 96, 0, h)
-        dirt.setColorAt(0, QColor('#8a6a45'))
-        dirt.setColorAt(1, QColor('#5d452c'))
-        p.setBrush(dirt)
-        p.drawRect(QRectF(0, 96, w, h - 96))
         lane_top, lane_h = 100, (h - 104) / 5
-        p.setPen(QPen(QColor(255, 255, 255, 26), 1, Qt.PenStyle.DashLine))
-        for i in range(1, 5):
-            y = lane_top + i * lane_h
-            p.drawLine(QPointF(0, y), QPointF(w, y))
         x0, x1 = 96, w - 74                                 # gate to finish line
-        # finish line + winning post
-        p.setBrush(QColor('#f4c542'))
-        p.drawRect(QRectF(x1 - 4, 90, 8, h - 94))
-        for r in range(int((h - 100) // 12)):
-            for c in range(2):
-                p.setBrush(QColor('#111111') if (r + c) % 2 else QColor('#e8eaf0'))
-                p.drawRect(QRectF(x1 + 6 + c * 9, 100 + r * 12, 9, 12))
         # the start gate (lifts when the race begins)
         if self.gate_up < 1.0:
             p.setBrush(QColor(120, 130, 150, 200))
             p.setPen(QPen(QColor('#c9d1e0'), 2))
             p.drawRect(QRectF(x0 - 14, lane_top + (1 - self.gate_up) * 0 - 4, 10, lane_h * 5 + 8))
-        for i in range(5):
-            y = lane_top + lane_h * (i + 0.5)
-            p.setBrush(QColor('#0e1119'))
-            p.setPen(QPen(QColor('#39415a'), 1))
-            p.drawRoundedRect(QRectF(8, y - 15, 74, 30), 8, 8)
-            p.setPen(QColor(self.SILKS[i]))
-            f = p.font()
-            f.setBold(True)
-            f.setPointSize(15)
-            p.setFont(f)
-            p.drawText(QRectF(8, y - 15, 74, 30), AC, f'{i + 1}  {rules.RACE_NAMES[i]}')
+        p.drawPixmap(0, 0, self._plates(w, h))            # the plates sit over the gate
         for d in self.dust:                                 # kicked-up dirt
             c = QColor('#c9b391')
             c.setAlpha(int(150 * d[3]))

@@ -2,7 +2,7 @@
 import math
 
 from PyQt6.QtCore import QPointF, QRectF, Qt, QTimer
-from PyQt6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen
+from PyQt6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QButtonGroup, QHBoxLayout, QWidget
 
 from .. import rules
@@ -28,38 +28,76 @@ class PlinkoBoard(QWidget):
         self.hit_slot = None
         self.flashes = {}            # (row, index) -> remaining glow of a struck peg
         self.pop = 0.0               # how much the winning slot is bouncing (0 = flat)
+        self._base_pm = None         # D18: pegs and slots at rest, painted once per risk
+        self._base_key = None
+
+    def _base(self):
+        """D18: the slot row is identical every frame except for the few pixels a bounce
+        touches, so the nine gradients and their labels are painted once per risk level and
+        only the winning slot is redrawn on top - while the ball is falling the board draws
+        the pegs live (their flash has to blend with the felt underneath) and blits one image
+        for the payouts."""
+        key = (self.risk, self.width(), self.height(), self.devicePixelRatioF())
+        if self._base_pm is None or self._base_key != key:
+            dpr = self.devicePixelRatioF()
+            pm = QPixmap(int(round(self.width() * dpr)), int(round(self.height() * dpr)))
+            pm.setDevicePixelRatio(dpr)
+            pm.fill(Qt.GlobalColor.transparent)
+            p = QPainter(pm)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            font = QFont(p.font())
+            font.setBold(True)
+            font.setPointSize(10)
+            p.setFont(font)
+            for k, m in enumerate(rules.PLINKO_TABLES[self.risk]):
+                rect = QRectF(CX + (k - 4) * DX - DX / 2 + 2, SLOT_Y, DX - 4, 34)
+                grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+                base = QColor(slot_color(m))
+                grad.setColorAt(0.0, base.lighter(145))
+                grad.setColorAt(1.0, base)
+                p.setBrush(grad)
+                p.setPen(QPen(QColor('#1a1a1a'), 1))
+                p.drawRoundedRect(rect, 6, 6)
+                p.setPen(QColor('white'))
+                p.drawText(rect, AC, f'{m:g}×')
+            p.end()
+            self._base_pm, self._base_key = pm, key
+        return self._base_pm
 
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.setPen(Qt.PenStyle.NoPen)
-        for r in range(rules.PLINKO_ROWS):
-            for j in range(r + 1):
-                hot = self.flashes.get((r, j), 0)
+        for r in range(rules.PLINKO_ROWS):                 # the pegs stay live: a struck peg
+            for j in range(r + 1):                         # must glow over the felt, not over
+                hot = self.flashes.get((r, j), 0)          # its own white dot
                 if hot:                                   # a peg the ball just bounced off lights up
                     p.setBrush(QColor(244, 197, 66, min(255, 60 + hot * 40)))
                     p.drawEllipse(QPointF(CX + (j - r / 2) * DX, TOP + 22 + r * DY), 6, 6)
                 else:
                     p.setBrush(QColor(255, 255, 255, 170))
                     p.drawEllipse(QPointF(CX + (j - r / 2) * DX, TOP + 22 + r * DY), 4, 4)
-        font = QFont(p.font())
-        font.setBold(True)
-        font.setPointSize(10)
-        p.setFont(font)
-        for k, m in enumerate(rules.PLINKO_TABLES[self.risk]):
-            grow = self.pop * 9 if k == self.hit_slot else 0     # the winning slot bounces up
-            rect = QRectF(CX + (k - 4) * DX - DX / 2 + 2, SLOT_Y - grow, DX - 4, 34 + grow * 2)
+        p.drawPixmap(0, 0, self._base())                   # the whole slot row, one image
+        if self.hit_slot is not None:                      # only the winning slot moves or glows
+            m = rules.PLINKO_TABLES[self.risk][self.hit_slot]
+            grow = self.pop * 9
+            rect = QRectF(CX + (self.hit_slot - 4) * DX - DX / 2 + 2, SLOT_Y - grow,
+                          DX - 4, 34 + grow * 2)
             grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
             base = QColor(slot_color(m))
-            light = base.lighter(145)
-            grad.setColorAt(0.0, light)
+            grad.setColorAt(0.0, base.lighter(145))
             grad.setColorAt(1.0, base)
             p.setBrush(grad)
-            p.setPen(QPen(QColor('#ffe9a3'), 3) if k == self.hit_slot else QPen(QColor('#1a1a1a'), 1))
+            p.setPen(QPen(QColor('#ffe9a3'), 3))
             p.drawRoundedRect(rect, 6, 6)
+            font = QFont(p.font())
+            font.setBold(True)
+            font.setPointSize(10)
+            p.setFont(font)
             p.setPen(QColor('white'))
             p.drawText(rect, AC, f'{m:g}×')
         if self.trail:                                     # fading glow behind the ball
+            p.setPen(QPen(QColor('white'), 1))             # (the slots' text pen, as before)
             for i, (tx, ty) in enumerate(self.trail):
                 a = int(60 * (i + 1) / len(self.trail))
                 p.setBrush(QColor(244, 197, 66, a))

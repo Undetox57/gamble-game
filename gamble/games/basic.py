@@ -2,7 +2,7 @@
 import math
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
-from PyQt6.QtGui import QColor, QLinearGradient, QPainter, QPen, QPolygonF
+from PyQt6.QtGui import QColor, QLinearGradient, QPainter, QPen, QPolygonF, QPixmap
 from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QWidget
 
 from .. import rules
@@ -206,32 +206,66 @@ class WheelWidget(QWidget):
         self.highlight = None          # index of the winning slice, once the round is over
         self.wobble = 0.0              # pointer twitch while the wheel is turning
         self.top_idx = None            # slice currently under the pointer
+        self._disk_pm = None           # D18: slices + labels, painted once and blitted rotated
+        self._disk_key = None
+
+    def _disk(self):
+        """D18: the twelve slices and their labels never change, so paint them once into a
+        pixmap and let every frame blit that one image rotated - twelve pies and twelve
+        pieces of text become a single drawPixmap while the wheel is spinning.
+
+        The cache is painted at twice the size: blitting it rotated resamples the image, and
+        a 2x source keeps every slice border and letterform crisp instead of jagged."""
+        dpr = self.devicePixelRatioF() * 2              # 2x supersample for the rotation
+        key = (self.width(), self.height(), dpr)
+        if self._disk_pm is None or self._disk_key != key:
+            pm = QPixmap(int(round(key[0] * dpr)), int(round(key[1] * dpr)))
+            pm.setDevicePixelRatio(dpr)
+            pm.fill(Qt.GlobalColor.transparent)
+            p = QPainter(pm)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            cx, cy, r = 165, 24 + self.R, self.R
+            p.translate(cx, cy)
+            font = p.font()
+            font.setBold(True)
+            font.setPointSize(13)
+            p.setFont(font)
+            for i, m in enumerate(rules.WHEEL_SEGMENTS):
+                p.save()
+                p.rotate(i * 30)
+                p.setBrush(QColor(WHEEL_COLORS[m]))
+                p.setPen(QPen(QColor('#1a1a1a'), 2))
+                p.drawPie(QRectF(-r, -r, 2 * r, 2 * r), 90 * 16, -30 * 16)
+                p.restore()
+                p.save()
+                p.rotate(i * 30 + 15)
+                p.setPen(QColor('white'))
+                p.drawText(QRectF(-30, -r + 12, 60, 30), AC, rules.WHEEL_LABELS[m])
+                p.restore()
+            p.end()
+            self._disk_pm, self._disk_key = pm, key
+        return self._disk_pm
 
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         cx, cy, r = 165, 24 + self.R, self.R
         p.translate(cx, cy)
-        font = p.font()
-        font.setBold(True)
-        font.setPointSize(13)
-        p.setFont(font)
-        for i, m in enumerate(rules.WHEEL_SEGMENTS):
-            p.save()
-            p.rotate(self.angle + i * 30)
-            p.setBrush(QColor(WHEEL_COLORS[m]))
-            p.setPen(QPen(QColor('#1a1a1a'), 2))
-            p.drawPie(QRectF(-r, -r, 2 * r, 2 * r), 90 * 16, -30 * 16)
+        p.rotate(self.angle)
+        p.translate(-cx, -cy)
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)   # rotate without jaggies
+        p.drawPixmap(0, 0, self._disk())                # the whole wheel, one image
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        p.translate(cx, cy)
+        p.rotate(-self.angle)                          # un-spin: the live overlays below apply
+        for i, m in enumerate(rules.WHEEL_SEGMENTS):   # the angle themselves, as the old code did
             if self.top_idx == i and self.highlight is None:   # slice passing under the pointer
+                p.save()
+                p.rotate(self.angle + i * 30)
                 p.setBrush(QColor(255, 255, 255, 40))
                 p.setPen(Qt.PenStyle.NoPen)
                 p.drawPie(QRectF(-r, -r, 2 * r, 2 * r), 90 * 16, -30 * 16)
-            p.restore()
-            p.save()
-            p.rotate(self.angle + i * 30 + 15)
-            p.setPen(QColor('white'))
-            p.drawText(QRectF(-30, -r + 12, 60, 30), AC, rules.WHEEL_LABELS[m])
-            p.restore()
+                p.restore()
             if self.highlight == i:                       # gold ring around the winning slice
                 p.save()
                 p.rotate(self.angle + i * 30)
