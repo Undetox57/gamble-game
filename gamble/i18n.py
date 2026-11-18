@@ -328,6 +328,7 @@ TR = {'tr': {
         'Görsel efektler (konfeti, afişler, bildirimler)',
     'Sound effects (wins, losses, jackpots)': 'Ses efektleri (kazanç, kayıp, jackpot)',
     'Show message log': 'Mesaj kaydını göster',
+    'Background music': 'Arka plan müziği',
     'Check for updates on startup': 'Açılışta güncelleme denetle',
     '⬆  Update available: {v}': '⬆  Güncelleme mevcut: {v}',
     'Open the download page': 'İndirme sayfasını aç',

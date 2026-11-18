@@ -204,7 +204,8 @@ class Settings:
                 'effects': True, 'show_log': True, 'help_seen': False,
                 'sound': True, 'cards': 'normal', 'keys': '',
                 'lang': 'en',                          # D5 / D7 / D6 / D9 (interface language)
-                'update_check': True}                  # E: ask GitHub for a newer release at startup
+                'update_check': True,                  # E: ask GitHub for a newer release at startup
+                'music': False}                        # D19: synthesised background music, opt-in
 
     def __init__(self):
         self.reset()

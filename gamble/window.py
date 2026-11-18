@@ -9,7 +9,7 @@ import urllib.request
 
 from PyQt6.QtCore import (QEasingCurve, QParallelAnimationGroup, QPoint, QPropertyAnimation, QRect,
                           QSequentialAnimationGroup, QUrl, QVariantAnimation, Qt, QTimer, pyqtSignal)
-from PyQt6.QtGui import QDesktopServices, QKeySequence, QShortcut
+from PyQt6.QtGui import QColor, QDesktopServices, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (QAbstractButton, QApplication, QFrame, QGraphicsOpacityEffect, QGridLayout,
                              QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressBar,
                              QScrollArea, QSpinBox, QStackedWidget, QTextEdit, QVBoxLayout, QWidget)
@@ -599,6 +599,7 @@ class MainWindow(QMainWindow):
         self.logbox.setVisible(st.show_log)
         self.side.setFixedWidth(round(280 + (TEXT_SCALES[st.text][1] - 1) * 200))
         sound.set_enabled(st.sound)                          # D5: sound effects on/off
+        sound.set_music(st.music)                            # D19: background music on/off
         set_card_scale(CARD_SIZES[st.cards][1][0] / 68)      # D7: how big the cards are drawn
         if not initial and getattr(self, 'keyname', None) and st.keymap() != self.keyname:
             self.rebind_keys()                               # D6: the hotkeys were changed
@@ -703,15 +704,21 @@ class MainWindow(QMainWindow):
         anim.start()
 
     def balloon(self, text, color):
-        """D3: a little speech balloon that pops up over the table and drifts away."""
+        """D3: the round's result rides in on a casino chip (D19) - a round chip with a shaded
+        rim that rises and drifts away. Effects and animation speed gate it like every effect."""
         if not self.settings.effects or self.anim_factor() <= 0:
             return
         host = self.centralWidget()
         if host is None or not alive(host):
             return
+        c = QColor(color)
+        light, dark = c.lighter(138).name(), c.darker(150).name()
         lbl = QLabel(text, host)
-        lbl.setStyleSheet(f'background:rgba(0,0,0,0.78);color:{color};border:2px solid {color};'
-                          'border-radius:14px;padding:8px 18px;font-size:18px;font-weight:800;')
+        lbl.setStyleSheet(f'color:#1a1400;'
+                          f'background:qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 {light}, '
+                          f'stop:0.45 {color}, stop:1 {dark});'
+                          'border:3px solid #1a1400; border-radius:24px; padding:10px 24px;'
+                          'font-size:18px;font-weight:800;')
         lbl.adjustSize()
         x = max(8, (host.width() - lbl.width()) // 2)
         y = round(host.height() * 0.20)

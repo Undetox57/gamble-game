@@ -180,6 +180,7 @@ class SettingsDialog(QDialog):
             self.lang.addItem(name, k)
         self.effects = QCheckBox(tr('Visual effects (confetti, banners, toasts)'))
         self.sound = QCheckBox(tr('Sound effects (wins, losses, jackpots)'))
+        self.music = QCheckBox(tr('Background music'))     # D19: synthesised loop, off by default
         self.log = QCheckBox(tr('Show message log'))
         self.update_chk = QCheckBox(tr('Check for updates on startup'))     # E: GitHub release check
         grid.addWidget(self.fs, 0, 0, 1, 2)
@@ -190,8 +191,9 @@ class SettingsDialog(QDialog):
             grid.addWidget(w, row, 1)
         grid.addWidget(self.effects, 6, 0, 1, 2)
         grid.addWidget(self.sound, 7, 0, 1, 2)
-        grid.addWidget(self.log, 8, 0, 1, 2)
-        grid.addWidget(self.update_chk, 9, 0, 1, 2)
+        grid.addWidget(self.music, 8, 0, 1, 2)
+        grid.addWidget(self.log, 9, 0, 1, 2)
+        grid.addWidget(self.update_chk, 10, 0, 1, 2)
         lay.addLayout(grid)
         lay.addWidget(section(tr('KEYBOARD')))
         keys_row = QHBoxLayout()
@@ -222,20 +224,21 @@ class SettingsDialog(QDialog):
         lay.addSpacing(6)
         lay.addLayout(row)
         self.load_values()
-        for c in (self.fs, self.effects, self.sound, self.log, self.update_chk):
+        for c in (self.fs, self.effects, self.sound, self.music, self.log, self.update_chk):
             c.toggled.connect(self.changed)
         for c in (self.theme, self.text, self.anim, self.cards, self.lang):
             c.currentIndexChanged.connect(self.changed)
 
     def load_values(self):
         st = self.win.settings
-        widgets = (self.fs, self.effects, self.sound, self.log, self.update_chk, self.theme, self.text,
-                   self.anim, self.cards, self.lang)
+        widgets = (self.fs, self.effects, self.sound, self.music, self.log, self.update_chk,
+                   self.theme, self.text, self.anim, self.cards, self.lang)
         for w in widgets:
             w.blockSignals(True)
         self.fs.setChecked(st.fullscreen)
         self.effects.setChecked(st.effects)
         self.sound.setChecked(st.sound)
+        self.music.setChecked(st.music)
         self.log.setChecked(st.show_log)
         self.update_chk.setChecked(st.update_check)
         self.theme.setCurrentIndex(self.theme.findData(st.theme))
@@ -252,6 +255,7 @@ class SettingsDialog(QDialog):
         st.fullscreen = self.fs.isChecked()
         st.effects = self.effects.isChecked()
         st.sound = self.sound.isChecked()
+        st.music = self.music.isChecked()
         st.show_log = self.log.isChecked()
         st.update_check = self.update_chk.isChecked()
         st.theme = self.theme.currentData()

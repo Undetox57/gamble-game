@@ -13,6 +13,7 @@ import wave
 
 RATE = 22050                     # samples per second; 16-bit mono is plenty for a blip
 _enabled = True
+_music = False                   # D19: background music, off until the player asks for it
 _cache = {}
 
 
@@ -24,6 +25,31 @@ def set_enabled(on):
 
 def enabled():
     return _enabled
+
+
+def set_music(on):
+    """D19: background music - a synthesised loop, one toggle like the effects. Switching the
+    same value twice does nothing, so re-applying settings never restarts the loop."""
+    global _music
+    on = bool(on)
+    if on == _music:
+        return
+    _music = on
+    try:
+        import winsound                                   # Windows only
+        if on:
+            path = _wav('music')
+            if path:
+                winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC |
+                                   winsound.SND_LOOP | winsound.SND_NODEFAULT)
+        else:
+            winsound.PlaySound(None, winsound.SND_PURGE)
+    except Exception:
+        pass
+
+
+def music_on():
+    return _music
 
 
 def _sweep(f0, f1, dur, vol=0.35, decay=1.4):
@@ -82,6 +108,29 @@ def _build(name):
         return _mix(_sweep(262, 262, 0.55, vol=0.14, decay=1.1),
                     _sweep(392, 392, 0.55, vol=0.13, decay=1.1),
                     _sweep(523, 523, 0.55, vol=0.13, decay=1.1))
+    if name == 'music':                    # D19: a slow I-vi-IV-V pad with a soft arpeggio -
+        beat = 0.75                        # two rounds make a 24 s loop that fades to silence
+        chords = [(261.63, 329.63, 392.00),   # C                  at both ends, so it repeats
+                   (220.00, 261.63, 329.63),   # Am                 without an audible seam
+                   (174.61, 220.00, 261.63),   # F
+                   (196.00, 246.94, 293.66)]   # G
+        out = []
+        for _round in range(2):
+            for a, b, c in chords:
+                dur = beat * 4
+                pad = _mix(_sweep(a, a, dur, vol=0.095, decay=0.85),
+                           _sweep(b, b, dur, vol=0.075, decay=0.85),
+                           _sweep(c, c, dur, vol=0.075, decay=0.85))
+                arp = []
+                for f in (a, b, c, b, a, c, b, a):
+                    arp.extend(_sweep(f * 2, f * 2, dur / 8 * 0.9, vol=0.05, decay=1.6))
+                out.extend(_mix(pad, arp))
+        breath = int(RATE * 0.75)                  # a slow breath at the seam: the loop wraps
+        for i in range(breath):                    # from silence into the first downbeat, so
+            k = i / breath                         # restarting it never clicks
+            out[i] *= k
+            out[-1 - i] *= k
+        return out
     return []
 
 
