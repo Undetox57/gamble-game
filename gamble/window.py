@@ -11,8 +11,8 @@ from PyQt6.QtCore import (QEasingCurve, QParallelAnimationGroup, QPoint, QProper
                           QSequentialAnimationGroup, QUrl, QVariantAnimation, Qt, QTimer, pyqtSignal)
 from PyQt6.QtGui import QDesktopServices, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (QAbstractButton, QApplication, QFrame, QGraphicsOpacityEffect, QGridLayout,
-                             QHBoxLayout, QLabel, QMainWindow, QMessageBox, QProgressBar, QScrollArea, QSpinBox,
-                             QStackedWidget, QTextEdit, QVBoxLayout, QWidget)
+                             QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressBar,
+                             QScrollArea, QSpinBox, QStackedWidget, QTextEdit, QVBoxLayout, QWidget)
 
 from . import config, share, sound
 from .config import (ACH_BY_KEY, CATEGORIES, CLEAN_STREAKS_FOR_ENDING, CLEAN_TARGET, DIFFICULTIES, GAME_HOTKEYS,
@@ -21,7 +21,8 @@ from .config import (ACH_BY_KEY, CATEGORIES, CLEAN_STREAKS_FOR_ENDING, CLEAN_TAR
                      TOURNAMENT_DAYS, TOURNAMENT_ENTRY, TOURNAMENT_SPRINT_BONUS_CAP,
                      TOURNAMENT_SPRINT_BONUS_RATE, TOURNAMENT_SPRINT_DAYS, TOURNAMENT_SPRINT_ENTRY, UNLOCK,
                      goal_for)
-from .dialogs import EndingDialog, EventDialog, NewGameDialog, SettingsDialog, key_from_name
+from .dialogs import (EndingDialog, EventDialog, NewGameDialog, SettingsDialog, TourDialog,
+                      key_from_name)
 from .engine import Engine
 from .fx import alive, banner, intro, shake, toast
 from .games import GAMES
@@ -232,7 +233,8 @@ class MainWindow(QMainWindow):
         if first_time and not self.settings.help_seen:
             self.settings.help_seen = True
             self.settings.save()
-            self.show_help()
+            tour = TourDialog(self)                     # D5: the quick tour replaces the help wall
+            tour.exec()
 
     # ---- building the UI
     def build_side(self):
@@ -336,6 +338,10 @@ class MainWindow(QMainWindow):
         self.lbl_maxbet = QLabel()
         self.lbl_maxbet.setObjectName('hint')
         bl.addWidget(self.lbl_maxbet)
+        self.repeat_btn = Button(tr('Repeat last bet'))      # D1: one click back to the last wager
+        self.repeat_btn.setVisible(False)                    # until a round has finished (refresh())
+        self.repeat_btn.clicked.connect(self.repeat_last_bet)
+        bl.addWidget(self.repeat_btn)
         bl.addStretch()
         lay.addWidget(bar)
 
@@ -376,10 +382,34 @@ class MainWindow(QMainWindow):
         sbl.addWidget(self.sb_prog)
         lay.addWidget(sb_panel)
 
+        # D2: recently played - one quick row above the search box, rebuilt by update_recents()
+        self.recents_wrap = QWidget()
+        rw = QVBoxLayout(self.recents_wrap)
+        rw.setContentsMargins(0, 0, 0, 0)
+        rw.setSpacing(8)
+        self.recents_section = section(tr('RECENTLY PLAYED'))
+        rw.addWidget(self.recents_section)
+        self.recents_row = QHBoxLayout()
+        rw.addLayout(self.recents_row)
+        lay.addWidget(self.recents_wrap)
+
+        # D2: filter the game grid as you type (Esc clears, then leaves the box)
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText(tr('Search games...'))
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.textChanged.connect(self.filter_games)
+        lay.addWidget(self.search_edit)
+
         self.lobby_keys = {}
         self.game_btns = {}
+        self.cat_widgets = {}                          # D2: category wrap (label + row), for filter_games
         for cat, keys in CATEGORIES:
-            lay.addWidget(section(tr(cat)))
+            wrap = QWidget()                           # one widget so the whole category can hide
+            wl = QVBoxLayout(wrap)
+            wl.setContentsMargins(0, 0, 0, 0)
+            wl.setSpacing(8)
+            lab = section(tr(cat))
+            wl.addWidget(lab)
             row = QHBoxLayout()
             for k in keys:
                 b = Button()
@@ -390,7 +420,10 @@ class MainWindow(QMainWindow):
                 self.game_btns[k] = b
                 i = LOBBY_ORDER.index(k)
                 self.lobby_keys[(DIGITS[i % 10], i >= 10)] = b          # 1-9, 0, then Alt+1..6
-            lay.addLayout(row)
+            wl.addLayout(row)
+            lay.addWidget(wrap)
+            self.cat_widgets[cat] = (wrap, lab, row)
+        self.update_recents()                          # D2: fills the row from state.recents
 
         def grid(items):
             g = QGridLayout()
@@ -492,6 +525,13 @@ class MainWindow(QMainWindow):
         super().keyPressEvent(e)
 
     def go_back(self):
+        search = getattr(self, 'search_edit', None)     # D2: Esc clears the search before leaving it
+        if search is not None and self.focusWidget() is search:
+            if search.text():
+                search.clear()
+            else:
+                search.clearFocus()
+            return
         if self.focusWidget() in (self.bet_spin, self.sb_spin):   # Esc first leaves the amount box
             self.setFocus()
             return
@@ -502,6 +542,47 @@ class MainWindow(QMainWindow):
             return                                          # no walking out of a round
         else:
             self.show_lobby()
+
+    # ---- lobby helpers (D): repeat bet, search, recently played
+    def repeat_last_bet(self):
+        """D1: put the wager of the last finished round back into the box."""
+        bet = self.state.last_bet
+        if bet > 0:
+            self.bet_spin.setValue(min(bet, self.bet_spin.maximum()))
+
+    def filter_games(self, text=''):
+        """D2: show only the games whose name, subtitle or key matches the search box.
+        A category hides entirely when none of its games match; the recents row hides too."""
+        q = (text or '').strip().lower()
+        cats = dict(CATEGORIES)
+        for cat, (wrap, _lab, _row) in self.cat_widgets.items():
+            keys = cats[cat]
+            hits = [k for k in keys if not q or q in tr(GAME_NAMES[k]).lower()
+                    or q in tr(GAME_SUBTITLES[k]).lower() or q in k.lower()]
+            wrap.setVisible(bool(hits))
+            for k in keys:
+                self.game_btns[k].setVisible(k in hits)
+        self.update_recents()                          # the row hides itself while searching
+
+    def update_recents(self):
+        """D2: rebuild the 'recently played' row from state.recents (newest first, capped)."""
+        if not hasattr(self, 'recents_row'):
+            return
+        while self.recents_row.count():
+            item = self.recents_row.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+        keys = [k for k in self.state.recents if k in self.game_btns]
+        cat_of = {k: c for c, ks in CATEGORIES for k in ks}
+        for k in keys:
+            b = Button(f'{GAME_ICONS[k]}  {tr(GAME_NAMES[k])}')
+            b.setObjectName('gameBtn')
+            b.setStyleSheet(f'QPushButton#gameBtn {{ border-left:4px solid {CATEGORY_ACCENTS[cat_of[k]]}; }}')
+            b.clicked.connect(lambda _=False, k=k: self.start_game(k))
+            self.recents_row.addWidget(b)
+        show = bool(keys) and not self.search_edit.text().strip()
+        self.recents_wrap.setVisible(show)
 
     # ---- display settings and small visual effects
     def anim_factor(self):
@@ -1018,6 +1099,11 @@ class MainWindow(QMainWindow):
         self.sprint_lbl.setVisible(True)
 
         self.bet_spin.setRange(1, max(1, min(s.balance, s.max_bet, 2_000_000_000)))
+        lb = s.last_bet                                  # D1: the repeat button needs a real wager
+        tip = txf('Last bet: {n} TL', n=lb) if lb > 0 else ''
+        if self.repeat_btn.toolTip() != tip:
+            self.repeat_btn.setToolTip(tip)
+        self.repeat_btn.setVisible(lb > 0)
         put_text(self.lbl_maxbet,
                  tr('max bet: ') + (tr('no limit') if s.max_bet >= 10 ** 9
                                     else txf('{n} TL', n=f'{s.max_bet:,}')))
@@ -1152,6 +1238,8 @@ class MainWindow(QMainWindow):
             return self.log(tr('Invalid bet amount!'), 'warn')
         if bet > s.max_bet:
             return self.log(txf('The maximum bet at your level is {n:,} TL.', n=s.max_bet), 'warn')
+        self.state.note_recent(key)                    # D2: the lobby's recently played row
+        self.update_recents()
         self.set_page(GAMES[key](self, bet))
 
     def play_again(self, key, bet):
@@ -1162,6 +1250,7 @@ class MainWindow(QMainWindow):
 
     def finish_round(self, key, delta, win, bet, tags, insured):
         self.engine.finish_game(key, delta, win, bet, tags, insured)
+        self.state.last_bet = int(bet)                   # D1: what "repeat last bet" will place
         ses = self.session                              # D1: what this sitting has been doing
         ses['games'] += 1
         ses['wins'] += win is True

@@ -9,6 +9,7 @@ from .config import (ACH_BY_KEY, BANK_INTEREST_CAP_PER_LEVEL, DIFFICULTIES, ENDI
 
 HISTORY_LIMIT = 400
 BET_HISTORY_LIMIT = 60                 # how many recent bets are kept in the save (20 are shown)
+RECENTS_LIMIT = 5                      # D: how many "recently played" games the lobby keeps
 
 
 def new_stats():
@@ -31,7 +32,8 @@ class GameState:
                  'worked_days',                         # career tenure (C3): days worked in this run
                  'shark_debt', 'shark_due',           # loan shark: owed TL and the day he comes to collect
                  'tour_active', 'tour_day', 'tour_net',  # tournament: running?, day it started, net worth then
-                 'games_today']                       # games played in the current day (5 ends the day)
+                 'games_today',                         # games played in the current day (5 ends the day)
+                 'last_bet']                            # D: wager of the last finished round (0 = none yet)
 
     def __init__(self):
         self.set_defaults()
@@ -57,6 +59,7 @@ class GameState:
         self.profit = {k: 0 for k in GAME_KEYS}      # net winnings per game in this run
         self.history = [(1, 100)]                    # (day, net worth) for the chart
         self.bet_history = []                        # [(game key, delta), newest last] - last rounds only
+        self.recents = []                            # D: game keys, most recently played first
         for k in self.EXTRA_INT:
             setattr(self, k, 0)
         self.last_therapy_day = -99
@@ -115,6 +118,12 @@ class GameState:
     def total_played(self):
         return sum(v['played'] for v in self.stats.values())
 
+    def note_recent(self, key):
+        """D: remember a game as just played - moved to the front, no duplicates, capped."""
+        if key not in GAME_KEYS:
+            return
+        self.recents = [key] + [k for k in self.recents if k != key][:RECENTS_LIMIT - 1]
+
     # ---- new run
     def start_run(self, difficulty):
         self.difficulty = difficulty if difficulty in DIFFICULTIES else 'normal'
@@ -149,7 +158,7 @@ class GameState:
             vals = (geti(2, 1), geti(3, 0), geti(4, 0), geti(5, 100), geti(6, 0), geti(7, 0), geti(8, 0), geti(9, 0))
             stats = new_stats()
             extras, items, profit = {}, {}, {k: 0 for k in GAME_KEYS}
-            history, bets = [], []
+            history, bets, recents = [], [], []
             damaged = 0
             for line in lines[10:]:
                 p = line.strip().split(':')
@@ -170,6 +179,8 @@ class GameState:
                                 if sep and name in GAME_KEYS:
                                     bets.append((name, int(delta)))
                             bets = bets[-BET_HISTORY_LIMIT:]
+                        elif key == 'recents':             # D: "slot,coin,plinko", newest first
+                            recents = [g for g in val.split(',') if g in GAME_KEYS][:RECENTS_LIMIT]
                         else:
                             extras[key] = val
                 except Exception:
@@ -193,6 +204,7 @@ class GameState:
                 setattr(self, k, v)
             self.history = history or [(self.day, self.net_worth)]
             self.bet_history = bets
+            self.recents = recents                     # old saves simply have no such line
             if damaged:
                 return f'Warning: {damaged} unreadable line(s) in the save were skipped.'
             return None
@@ -224,6 +236,8 @@ class GameState:
                 if self.bet_history:
                     f.write('x:bets:' + ','.join(f'{k}={d}' for k, d in self.bet_history[-BET_HISTORY_LIMIT:])
                             + '\n')
+                if self.recents:                        # D: the lobby's recently played row
+                    f.write('x:recents:' + ','.join(self.recents) + '\n')
                 f.write('x:hist:' + ','.join(f'{d}={v}' for d, v in self.history[-HISTORY_LIMIT:]) + '\n')
             return None
         except Exception as e:
@@ -241,6 +255,11 @@ class MetaState:
         self.sprints = {k: 0 for k in DIFFICULTIES}       # D12: best sprint result on each difficulty
         self.goal_rungs = {k: 1 for k in DIFFICULTIES}    # D13: goal-chain rung unlocked on each difficulty
         self.chain_exp = 0                                # D13: exp promised by a cleared rung, paid at the next start
+
+    def reset(self):
+        """D: back to "nothing earned yet" - a restored backup replaces the meta file, it does
+        not merge into what is already loaded."""
+        self.__init__()
 
     def record(self, difficulty, net_worth):
         """Remember the best net worth of a difficulty. Returns True when it is a new best."""

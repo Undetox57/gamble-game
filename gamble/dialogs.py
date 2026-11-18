@@ -1,7 +1,13 @@
 """Modal dialogs: random events, endings, settings, key bindings and the new-game difficulty picker."""
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QCheckBox, QComboBox, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout
+import os
+import time
+import zipfile
 
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QListWidget,
+                             QMessageBox, QStackedWidget, QVBoxLayout, QWidget)
+
+from . import config
 from .config import ACHIEVEMENTS, DIFFICULTIES, ENDINGS
 from .i18n import LANGUAGES, current, tr, txf
 from .style import ANIM_SPEEDS, CARD_SIZES, DEFAULT_KEYS, KEY_NAMES, TEXT_SCALES, THEMES
@@ -197,6 +203,13 @@ class SettingsDialog(QDialog):
         keys_row.addWidget(keys_btn)
         keys_row.addWidget(self.keys_lbl, 1)
         lay.addLayout(keys_row)
+        lay.addWidget(section(tr('SAVE BACKUPS')))          # D3: zip copies of the three save files
+        bk_row = QHBoxLayout()
+        bk_btn = Button(tr('Manage backups...'))
+        bk_btn.clicked.connect(self.backups)
+        bk_row.addWidget(bk_btn)
+        bk_row.addStretch()
+        lay.addLayout(bk_row)
         row = QHBoxLayout()
         restore = Button(tr('Restore defaults'))
         restore.clicked.connect(self.restore)
@@ -260,6 +273,12 @@ class SettingsDialog(QDialog):
         dlg = KeybindDialog(self.win)
         dlg.exec()
         self.apply()                                   # same rule as every other setting
+        self.load_values()
+
+    def backups(self):
+        dlg = BackupDialog(self.win)                  # D3: create, restore, delete
+        dlg.exec()
+        self.apply()                                   # a restore may have replaced the settings file
         self.load_values()
 
     def restore(self):
@@ -400,3 +419,226 @@ class NewGameDialog(QDialog):
 
     def reject(self):
         pass
+
+
+class BackupDialog(QDialog):
+    """D3: zip copies of the three save files plus share/. Create, restore, delete."""
+
+    def __init__(self, win):
+        super().__init__(win)
+        self.win = win
+        self.setWindowTitle(tr('Save backups'))
+        self.setModal(True)
+        self.setMinimumSize(560, 420)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(22, 18, 22, 18)
+        lay.setSpacing(10)
+        lay.addWidget(section(tr('SAVE BACKUPS')))
+        top = QHBoxLayout()
+        make = Button(tr('Create backup now'))
+        make.setObjectName('primary')
+        make.clicked.connect(self.create)
+        top.addWidget(make)
+        hint = QLabel(tr('Backups are zip files in the backups folder next to the game.'))
+        hint.setObjectName('hint')
+        hint.setWordWrap(True)
+        top.addWidget(hint, 1)
+        lay.addLayout(top)
+        self.listw = QListWidget()
+        lay.addWidget(self.listw, 1)
+        row = QHBoxLayout()
+        restore = Button(tr('Restore'))
+        restore.clicked.connect(self.restore_selected)
+        delete = Button(tr('Delete'))
+        delete.setObjectName('danger')
+        delete.clicked.connect(self.delete_selected)
+        close = Button(tr('Close'))
+        close.clicked.connect(self.accept)
+        row.addWidget(restore)
+        row.addWidget(delete)
+        row.addStretch()
+        row.addWidget(close)
+        lay.addLayout(row)
+        self.refresh_list()
+
+    # ---- files
+    def files(self):
+        d = config.BACKUP_DIR
+        if not os.path.isdir(d):
+            return []
+        return sorted((n for n in os.listdir(d) if n.startswith('backup-') and n.endswith('.zip')
+                       and os.path.isfile(os.path.join(d, n))), reverse=True)   # newest stamp first
+
+    def refresh_list(self):
+        self.listw.clear()
+        self.listw.addItems(self.files())
+
+    def create(self):
+        os.makedirs(config.BACKUP_DIR, exist_ok=True)
+        name = time.strftime('backup-%Y%m%d-%H%M%S.zip')
+        with zipfile.ZipFile(os.path.join(config.BACKUP_DIR, name), 'w', zipfile.ZIP_DEFLATED) as z:
+            for path, arc in ((config.SAVE_FILE, 'savegame.txt'),
+                              (config.META_FILE, 'gamble_meta.txt'),
+                              (config.SETTINGS_FILE, 'gamble_settings.txt')):
+                if os.path.exists(path):
+                    z.write(path, arc)
+            if os.path.isdir(config.SHARE_DIR):
+                for root, _dirs, names in os.walk(config.SHARE_DIR):
+                    for f in names:
+                        p = os.path.join(root, f)
+                        if os.path.isfile(p):
+                            z.write(p, 'share/' + os.path.basename(p))
+        self.refresh_list()
+        if self.listw.count():
+            self.listw.setCurrentRow(0)
+        return name
+
+    # ---- restore / delete (ask=False skips the confirm, for scripts)
+    def restore(self, name, ask=True):
+        path = os.path.join(config.BACKUP_DIR, name)
+        if not os.path.exists(path):
+            return False
+        if ask and QMessageBox.question(
+                self, tr('Restore backup?'), txf('Replace the current saves with {n}?', n=name),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+            return False
+        have = set()
+        targets = {'savegame.txt': config.SAVE_FILE, 'gamble_meta.txt': config.META_FILE,
+                   'gamble_settings.txt': config.SETTINGS_FILE}
+        with zipfile.ZipFile(path) as z:
+            for info in z.infolist():
+                parts = info.filename.replace('\\', '/').split('/')
+                if len(parts) == 1 and parts[0] in targets:
+                    target, key = targets[parts[0]], parts[0]
+                elif len(parts) == 2 and parts[0] == 'share' and parts[1] and '..' not in parts:
+                    os.makedirs(config.SHARE_DIR, exist_ok=True)
+                    target, key = os.path.join(config.SHARE_DIR, parts[1]), 'share'
+                else:
+                    continue                      # anything else in the zip is not ours to write
+                with z.open(info) as src, open(target, 'wb') as dst:
+                    dst.write(src.read())
+                have.add(key)
+        self._reload(have)
+        return True
+
+    def delete(self, name, ask=True):
+        path = os.path.join(config.BACKUP_DIR, name)
+        if not os.path.exists(path):
+            return False
+        if ask and QMessageBox.question(
+                self, tr('Delete backup?'), txf('Delete {n} permanently?', n=name),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+            return False
+        os.remove(path)
+        self.refresh_list()
+        return True
+
+    def restore_selected(self):
+        item = self.listw.currentItem()
+        if item is not None:
+            self.restore(item.text())
+
+    def delete_selected(self):
+        item = self.listw.currentItem()
+        if item is not None:
+            self.delete(item.text())
+
+    def _reload(self, have):
+        """The files on disk changed - read them back into the live window."""
+        win = self.win
+        if 'savegame.txt' in have:
+            err = win.state.load()
+            if err:
+                win.log(err, 'loss')
+            win._last_balance = None
+        if 'gamble_meta.txt' in have:
+            win.meta.reset()
+            win.meta.load()
+            win._ach_seen = set(win.meta.achievements)
+            win._tour_seen = dict(win.meta.tournaments)
+            win._sprint_seen = dict(win.meta.sprints)
+        if 'gamble_settings.txt' in have:
+            win.settings.load()
+            win.apply_settings()               # a restored language/theme applies like any other
+        win.update_recents()
+        win.refresh()
+
+
+class TourDialog(QDialog):
+    """D5: five short screens instead of the wall of help text on the very first run."""
+
+    STEPS = (
+        ('How this works',
+         'You gamble your way to a goal: reach the target net worth before the run ends. Every '
+         'round can swing either way, and a long losing streak can end the game - this is a '
+         'simulation, so play like your rent depends on it... but it does not.'),
+        ('Wallet and day',
+         'The left bar shows your wallet, your mental health and the current day. Work for steady '
+         'money, pass days to let debt and tiredness cool off, and keep your mental health above '
+         'the line.'),
+        ('Pick a game',
+         'Pick a game from the lobby: slots, dice, crash, blackjack and more. Set your bet in the '
+         'top bar first, then click a game or press its number key. The repeat button puts your '
+         'last wager back.'),
+        ('Side bets and more',
+         'Next to the games there is a streak bet (win N rounds in a row), the daily sprint, the '
+         'tournament, the bank, the jobs board and the shop. They open up as you level up.'),
+        ('Any time',
+         'Press F1 for the full rules, use the search box to find a game, and open Settings to '
+         'change the theme, the language or the key bindings. Good luck!'),
+    )
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(tr('QUICK TOUR'))
+        self.setModal(True)
+        self.setMinimumWidth(580)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(26, 22, 26, 22)
+        lay.setSpacing(14)
+        self.stackw = QStackedWidget()
+        for title, body in self.STEPS:
+            page = QWidget()
+            pl = QVBoxLayout(page)
+            pl.setContentsMargins(0, 0, 0, 0)
+            pl.setSpacing(10)
+            head = QLabel(tr(title))
+            head.setObjectName('section')
+            pl.addWidget(head)
+            txt = QLabel(tr(body))
+            txt.setWordWrap(True)
+            pl.addWidget(txt)
+            pl.addStretch()
+            self.stackw.addWidget(page)
+        lay.addWidget(self.stackw, 1)
+        nav = QHBoxLayout()
+        self.back = Button(tr('Back'))
+        self.back.clicked.connect(lambda: self.go(-1))
+        nav.addWidget(self.back)
+        self.count = QLabel()
+        self.count.setObjectName('hint')
+        nav.addWidget(self.count)
+        nav.addStretch()
+        skip = Button(tr('Skip'))
+        skip.clicked.connect(self.accept)
+        nav.addWidget(skip)
+        self.next = Button(tr('Next'))
+        self.next.setObjectName('primary')
+        self.next.clicked.connect(lambda: self.go(1))
+        nav.addWidget(self.next)
+        lay.addLayout(nav)
+        self._sync()
+
+    def go(self, step):
+        self.stackw.setCurrentIndex(self.stackw.currentIndex() + step)
+        self._sync()
+
+    def _sync(self):
+        i = self.stackw.currentIndex()
+        self.back.setEnabled(i > 0)
+        self.count.setText(f'{i + 1} / {self.stackw.count()}')
+        text = tr('Start playing') if i == self.stackw.count() - 1 else tr('Next')
+        if self.next.text() != text:
+            self.next.setText(text)

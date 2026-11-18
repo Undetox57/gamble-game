@@ -73,12 +73,13 @@ class LineChart(QWidget):
     """Net worth over the days, with the goal as a dashed line."""
     GOLD = QColor('#f4c542')
 
-    def __init__(self):
+    def __init__(self, empty='Play a few days to see your net worth chart.'):
         super().__init__()
         self.setObjectName('netChart')           # D17: a themed panel instead of a painted black box
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.points = []
         self.goal = None
+        self.empty = empty                       # D4: what to say when there is no curve yet
         self.setMinimumHeight(200)
 
     def set_data(self, points, goal=None):
@@ -109,7 +110,7 @@ class LineChart(QWidget):
         muted = QColor('#8b93a8')
         if len(self.points) < 2:
             p.setPen(muted)
-            p.drawText(QRectF(self.rect()), AC, 'Play a few days to see your net worth chart.')
+            p.drawText(QRectF(self.rect()), AC, self.empty)
             return
         xs = [d for d, _ in self.points]
         ys = [v for _, v in self.points]

@@ -390,10 +390,13 @@ class StatsPage(QWidget):
         lay.addWidget(section(tr('NET WORTH OVER TIME')))
         self.chart = LineChart()
         lay.addWidget(self.chart, 3)
+        lay.addWidget(section(tr('PROFIT OVER THE LAST ROUNDS')))      # D4: cumulative, per round
+        self.profit_chart = LineChart(empty=tr('Play a few rounds to see the profit curve.'))
+        lay.addWidget(self.profit_chart, 2)
         lay.addWidget(section(tr('PER-GAME STATS')))
         self.table = make_table([tr('Game'), tr('Played'), tr('Won'), tr('Lost'), tr('Win rate'),
                                  tr('Profit')], len(GAME_KEYS) + 1)
-        lay.addWidget(self.table, 4)
+        lay.addWidget(self.table, 3)
         lay.addWidget(section(tr('LAST 20 BETS')))
         self.bets = make_table([tr('Game'), tr('Result')], 0)     # filled in refresh()
         self.bets.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
@@ -430,6 +433,11 @@ class StatsPage(QWidget):
             f'color:{green};' if total_profit > 0 else f'color:{red};' if total_profit < 0 else f'color:{muted};')
         self.cards['net'].setStyleSheet(f'color:{gold};')
         self.chart.set_data(s.history + [(s.day, s.net_worth)] if s.history[-1][0] != s.day else s.history, s.goal)
+        cum, run = [], 0                                  # D4: the profit curve of the last rounds
+        for _k, d in s.bet_history:
+            run += d
+            cum.append(run)
+        self.profit_chart.set_data(list(enumerate(cum, start=1)))
         tp = tw = tl = 0
         rows = []
         for k in GAME_KEYS:

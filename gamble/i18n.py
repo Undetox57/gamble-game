@@ -554,4 +554,60 @@ TR = {'tr': {
     'The interest grew faster than you could pay it. The calls never stopped, and in the end everything was '
     'taken.':
         'Faiz ödediğinizden hızlı büyüdü. Telefonlar hiç susmadı ve sonunda her şey alındı.',
+    # ---- D batch (1.1.6): lobby search / recents / repeat bet
+    'Search games...': 'Oyunlar ara...',
+    'RECENTLY PLAYED': 'SON OYNANANLAR',
+    'Repeat last bet': 'Son bahsi tekrarla',
+    'Last bet: {n} TL': 'Son bahis: {n} TL',
+    # ---- D batch: statistics
+    'PROFIT OVER THE LAST ROUNDS': 'SON TURLARDAKİ KÂR',
+    'Play a few rounds to see the profit curve.': 'Kâr eğrisini görmek için birkaç tur oynayın.',
+    # ---- D batch: save backups
+    'SAVE BACKUPS': 'KAYIT YEDEKLERİ',
+    'Save backups': 'Kayıt yedekleri',
+    'Manage backups...': 'Yedekleri yönet...',
+    'Create backup now': 'Şimdi yedek oluştur',
+    'Backups are zip files in the backups folder next to the game.':
+        'Yedekler, oyunun yanındaki backups klasöründeki zip dosyalarıdır.',
+    'Restore': 'Geri yükle',
+    'Delete': 'Sil',
+    'Restore backup?': 'Yedek geri yüklensin mi?',
+    'Replace the current saves with {n}?': 'Mevcut kayıtlar {n} ile değiştirilsin mi?',
+    'Delete backup?': 'Yedek silinsin mi?',
+    'Delete {n} permanently?': '{n} kalıcı olarak silinsin mi?',
+    # ---- D batch: first-run tour
+    'QUICK TOUR': 'HIZLI TUR',
+    'How this works': 'Nasıl çalışır',
+    'You gamble your way to a goal: reach the target net worth before the run ends. Every round can swing '
+    'either way, and a long losing streak can end the game - this is a simulation, so play like your rent '
+    'depends on it... but it does not.':
+        'Hedefe ulaşmak için kumar oynuyorsunuz: hedef net değere koşul bitmeden ulaşın. Her tur iki yöne de '
+        'sallanabilir, uzun bir kayıp serisi oyunu bitirebilir - bu bir simülasyon, bu yüzden kiranız buna '
+        'bağlıymış gibi oynayın... ama bağlı değil.',
+    'Wallet and day': 'Cüzdan ve gün',
+    'The left bar shows your wallet, your mental health and the current day. Work for steady money, pass '
+    'days to let debt and tiredness cool off, and keep your mental health above the line.':
+        'Soldaki çubuk cüzdanınızı, zihinsel sağlığınızı ve içinde bulunulan günü gösterir. Düzenli para '
+        'kazanmak için çalışın, borç ve yorgunluğun soğuması için günleri geçirin, zihinsel sağlığınızı '
+        'çizginin üstünde tutun.',
+    'Pick a game': 'Bir oyun seç',
+    'Pick a game from the lobby: slots, dice, crash, blackjack and more. Set your bet in the top bar first, '
+    'then click a game or press its number key. The repeat button puts your last wager back.':
+        'Lobiden bir oyun seçin: slot, zar, crash, blackjack ve daha fazlası. Önce üst bardaki bahsi '
+        'belirleyin, sonra bir oyuna tıklayın veya numara tuşuna basın. Tekrarla düğmesi son bahsinizi geri '
+        'koyar.',
+    'Side bets and more': 'Yan bahisler ve fazlası',
+    'Next to the games there is a streak bet (win N rounds in a row), the daily sprint, the tournament, the '
+    'bank, the jobs board and the shop. They open up as you level up.':
+        'Oyunların yanında bir seri bahsi (art arda N tur kazanma), günlük sprint, turnuva, banka, iş panosu '
+        've dükkân var. Seviye atladıkça açılırlar.',
+    'Any time': 'İstediğiniz zaman',
+    'Press F1 for the full rules, use the search box to find a game, and open Settings to change the theme, '
+    'the language or the key bindings. Good luck!':
+        'Tüm kurallar için F1’e basın, bir oyun bulmak için arama kutusunu kullanın ve tema, dil veya '
+        'kısayolları değiştirmek için Ayarları açın. Bol şans!',
+    'Back': 'Geri',
+    'Next': 'İleri',
+    'Skip': 'Atla',
+    'Start playing': 'Oynamaya başla',
 }}

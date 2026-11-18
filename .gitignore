@@ -13,6 +13,7 @@ savegame.txt
 gamble_meta.txt
 gamble_settings.txt
 share/
+backups/
 
 # --- installer output ---
 installer/Output/
