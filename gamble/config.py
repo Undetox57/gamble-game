@@ -22,7 +22,7 @@ SETTINGS_FILE = os.path.join(BASE_DIR, 'gamble_settings.txt')
 BACKUP_DIR = os.path.join(BASE_DIR, 'backups')   # D3: zip copies made from Settings -> Save backups
 
 # ---------------------------------------------------------------- release identity (E batch)
-VERSION = '1.1.5'                 # what the in-app update check compares GitHub releases against
+VERSION = '1.1.6'                 # what the in-app update check compares GitHub releases against
 REPO = 'Undetox57/gamble-game'    # github.com/<REPO> - the update check queries its releases
 
 # ---------------------------------------------------------------- games
