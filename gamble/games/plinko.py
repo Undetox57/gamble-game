@@ -6,7 +6,6 @@ from PyQt6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QButtonGroup, QHBoxLayout, QWidget
 
 from .. import rules
-from ..fx import VRNG
 from ..widgets import AC, Button, centered
 from .base import BaseGame, K
 

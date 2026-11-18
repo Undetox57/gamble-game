@@ -1,12 +1,15 @@
 """The main window: layout, navigation, keyboard shortcuts and the small visual effects.
 All game rules live in engine.py; this file only shows them and asks the engine to act."""
 import html
+import json
 import os
+import threading
 import time
+import urllib.request
 
 from PyQt6.QtCore import (QEasingCurve, QParallelAnimationGroup, QPoint, QPropertyAnimation, QRect,
-                          QSequentialAnimationGroup, QVariant, QVariantAnimation, Qt, QTimer)
-from PyQt6.QtGui import QKeySequence, QShortcut
+                          QSequentialAnimationGroup, QUrl, QVariantAnimation, Qt, QTimer, pyqtSignal)
+from PyQt6.QtGui import QDesktopServices, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (QAbstractButton, QApplication, QFrame, QGraphicsOpacityEffect, QGridLayout,
                              QHBoxLayout, QLabel, QMainWindow, QMessageBox, QProgressBar, QScrollArea, QSpinBox,
                              QStackedWidget, QTextEdit, QVBoxLayout, QWidget)
@@ -18,7 +21,7 @@ from .config import (ACH_BY_KEY, CATEGORIES, CLEAN_STREAKS_FOR_ENDING, CLEAN_TAR
                      TOURNAMENT_DAYS, TOURNAMENT_ENTRY, TOURNAMENT_SPRINT_BONUS_CAP,
                      TOURNAMENT_SPRINT_BONUS_RATE, TOURNAMENT_SPRINT_DAYS, TOURNAMENT_SPRINT_ENTRY, UNLOCK,
                      goal_for)
-from .dialogs import EndingDialog, EventDialog, KeybindDialog, NewGameDialog, SettingsDialog, key_from_name
+from .dialogs import EndingDialog, EventDialog, NewGameDialog, SettingsDialog, key_from_name
 from .engine import Engine
 from .fx import alive, banner, intro, shake, toast
 from .games import GAMES
@@ -38,6 +41,14 @@ def put_text(widget, text):
         widget.setText(text)
 
 
+def _ver_key(v):
+    """'v1.1.4' -> (1, 1, 4); anything unparsable becomes (0,) so it can never look newer."""
+    try:
+        return tuple(int(p) for p in str(v).strip().lstrip('vV').split('.'))
+    except ValueError:
+        return (0,)
+
+
 def put_skin(widget, sheet):
     """D15: an identical stylesheet re-applied forces a full re-polish of the widget."""
     if widget.styleSheet() != sheet:
@@ -45,6 +56,8 @@ def put_skin(widget, sheet):
 
 
 class MainWindow(QMainWindow):
+    update_found = pyqtSignal(str)                     # E: a newer release was seen on GitHub (any thread)
+
     def __init__(self, autostart=True):
         super().__init__()
         self.setWindowTitle('Gamble Game')
@@ -68,6 +81,8 @@ class MainWindow(QMainWindow):
         self._day_anim = None                      # D16: the pop currently running on it
         self._trans = None                         # D16: the page fade currently running
         self._bar_anims, self._bar_ranges = {}, {}  # D16: one tween + one scale snapshot per bar
+        self._update_ver = None                     # E: set once the background release check answers
+        self.update_found.connect(self._on_update_found)
         self.session = {'start': time.time(), 'games': 0, 'wins': 0, 'best': 0, 'net0': 0}
         self.build_ui()
 
@@ -164,10 +179,48 @@ class MainWindow(QMainWindow):
         if self.settings.effects and self.anim_factor() > 0:   # D14: a short start screen, then the game
             intro(self.centralWidget(), tr('🎰  GAMBLE GAME'), tr('Welcome to the Gamble Game!'))
             sound.play('start')
+        if self.settings.update_check:                          # E: silent background release check
+            self.check_for_updates()
         if self.fresh_install:
             self.ask_new_game(first_time=True)
         elif not self.handle_endings():
             self.process_events()
+
+    # ---- update check (E): GitHub releases, behind Settings -> "Check for updates on startup"
+    def check_for_updates(self):
+        """Ask GitHub for the newest release in a daemon thread. Any failure (offline, rate
+        limited, no network) stays silent - the game never waits on or nags about this."""
+
+        def work():
+            try:
+                req = urllib.request.Request(
+                    f'https://api.github.com/repos/{config.REPO}/releases/latest',
+                    headers={'Accept': 'application/vnd.github+json',
+                             'User-Agent': f'GambleGame/{config.VERSION}'})
+                with urllib.request.urlopen(req, timeout=4) as resp:
+                    tag = json.loads(resp.read().decode('utf-8')).get('tag_name', '')
+            except Exception:
+                return                                   # offline / blocked / bad payload: say nothing
+            if _ver_key(tag) > _ver_key(config.VERSION):
+                self.update_found.emit(str(tag).lstrip('vV'))   # queued into the UI thread
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_update_found(self, version):
+        """UI thread: remember the version and light the lobby pill if the lobby is built."""
+        self._update_ver = version
+        if getattr(self, 'update_pill', None) is not None:
+            self._paint_update_pill()
+            self.update_pill.setVisible(True)
+
+    def _paint_update_pill(self):
+        pill = getattr(self, 'update_pill', None)
+        if pill is not None and self._update_ver:
+            put_text(pill, txf('⬆  Update available: {v}', v=self._update_ver))
+            pill.setToolTip(tr('Open the download page'))
+
+    def open_update_page(self):
+        QDesktopServices.openUrl(QUrl(f'https://github.com/{config.REPO}/releases/latest'))
 
     def ask_new_game(self, first_time=False):
         dlg = NewGameDialog(self, first_time)
@@ -253,6 +306,15 @@ class MainWindow(QMainWindow):
         lay = QVBoxLayout(inner)
         lay.setContentsMargins(0, 0, 8, 0)
         lay.setSpacing(8)
+
+        # E: the "new version" pill - hidden until the background release check answers
+        self.update_pill = Button()
+        self.update_pill.setObjectName('updatePill')
+        self.update_pill.setVisible(bool(self._update_ver))
+        self.update_pill.clicked.connect(self.open_update_page)
+        self._paint_update_pill()
+        lay.addWidget(self.update_pill)
+
         bar = QFrame()
         bar.setObjectName('panel')
         bl = QHBoxLayout(bar)
@@ -476,10 +538,11 @@ class MainWindow(QMainWindow):
             return
         set_lang(lang)
         old = self.centralWidget()
-        # the stack holds the wrapped pages (a scroll area), so compare against the wrapper
-        current = self.stack.currentWidget() if hasattr(self, 'stack') else None
+        # the stack holds the wrapped pages (a scroll area), so compare against the wrapper.
+        # (named `page`, not `current`: a local `current` would shadow the i18n current() above)
+        page = self.stack.currentWidget() if hasattr(self, 'stack') else None
         key = next((k for k in ('bank', 'stats', 'jobs', 'ach', 'shop', 'help', 'trophy')
-                    if current is self.page_wrap.get(getattr(self, f'{k}_page', None))), None)
+                    if page is self.page_wrap.get(getattr(self, f'{k}_page', None))), None)
         self.build_ui()                                # rebuilds in the new language, then re-applies
         if old is not None:
             old.deleteLater()
@@ -770,11 +833,11 @@ class MainWindow(QMainWindow):
         fade.setDuration(max(140, round(300 * self.anim_factor())))
         fade.setEasingCurve(QEasingCurve.Type.OutCubic)
 
-        def done(l=lbl, a=fade):
+        def done(lab=lbl, a=fade):
             if getattr(self, '_day_anim', None) is a:
                 self._day_anim = None
-            if alive(l):
-                l.setGraphicsEffect(None)
+            if alive(lab):
+                lab.setGraphicsEffect(None)
             a.deleteLater()
 
         fade.finished.connect(done)

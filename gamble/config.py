@@ -20,6 +20,10 @@ SAVE_FILE = os.path.join(BASE_DIR, 'savegame.txt')
 META_FILE = os.path.join(BASE_DIR, 'gamble_meta.txt')
 SETTINGS_FILE = os.path.join(BASE_DIR, 'gamble_settings.txt')
 
+# ---------------------------------------------------------------- release identity (E batch)
+VERSION = '1.1.5'                 # what the in-app update check compares GitHub releases against
+REPO = 'Undetox57/gamble-game'    # github.com/<REPO> - the update check queries its releases
+
 # ---------------------------------------------------------------- games
 GAME_KEYS = ['coin', 'dice', 'roulette', 'blackjack', 'slot', 'tombala', 'poker', 'baccarat', 'race',
              'wheel', 'scratch', 'crash', 'plinko', 'hilo', 'mines', 'keno']

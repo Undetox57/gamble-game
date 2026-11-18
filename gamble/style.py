@@ -67,6 +67,10 @@ QPushButton#primary:pressed { background:#d4a017; }
 QPushButton#primary:disabled { background:#4a4020; color:#8a8060; }
 QPushButton#danger { background:qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #6e2634, stop:1 #5a1f2a); border:1px solid #8a2f3d; }
 QPushButton#danger:hover { background:#7a2836; }
+/* E: the lobby pill that announces a newer release on GitHub. */
+QPushButton#updatePill { background:#1c2230; border:1px solid #d4a017; border-radius:8px; color:#f4c542;
+        font-size:13px; padding:6px 12px; }
+QPushButton#updatePill:hover { background:#2a3348; border-color:#f4c542; }
 QPushButton#gameBtn { text-align:left; padding:12px 14px; font-size:15px; }
 QPushButton#num { padding:0; border-radius:6px; }
 QSpinBox, QDoubleSpinBox { background:#0f131b; border:1px solid #3a4560; border-radius:8px; padding:6px; font-size:16px;
@@ -199,7 +203,8 @@ class Settings:
     DEFAULTS = {'fullscreen': False, 'theme': 'classic', 'text': 'normal', 'anim': 'normal',
                 'effects': True, 'show_log': True, 'help_seen': False,
                 'sound': True, 'cards': 'normal', 'keys': '',
-                'lang': 'en'}                        # D5 / D7 / D6 / D9 (interface language)
+                'lang': 'en',                          # D5 / D7 / D6 / D9 (interface language)
+                'update_check': True}                  # E: ask GitHub for a newer release at startup
 
     def __init__(self):
         self.reset()

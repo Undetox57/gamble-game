@@ -22,3 +22,6 @@ installer/Output/
 .idea/
 Thumbs.db
 Desktop.ini
+
+# --- lint cache (ruff writes its own .gitignore inside, this is belt and braces) ---
+.ruff_cache/

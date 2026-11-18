@@ -426,17 +426,29 @@ class EngineTest(unittest.TestCase):
         s, e = self.s, self.e
         s.mental = 0
         self.assertEqual(e.check_endings(), 'breakdown')
-        s.set_defaults(); s.start_run('normal'); s.balance = 0; s.debt = 250
+        s.set_defaults()
+        s.start_run('normal')
+        s.balance = 0
+        s.debt = 250
         self.assertEqual(e.check_endings(), 'bankrupt')
-        s.set_defaults(); s.start_run('normal'); s.debt = 800
+        s.set_defaults()
+        s.start_run('normal')
+        s.debt = 800
         self.assertEqual(e.check_endings(), 'debt_spiral')
-        s.set_defaults(); s.start_run('normal'); s.balance = 60000
+        s.set_defaults()
+        s.start_run('normal')
+        s.balance = 60000
         self.assertEqual(e.check_endings(), 'high_roller')
         self.assertIsNone(e.check_endings(), 'a goal ending is shown only once')
-        s.set_defaults(); s.start_run('hard'); s.balance = 120000; s.mental = 20
+        s.set_defaults()
+        s.start_run('hard')
+        s.balance = 120000
+        s.mental = 20
         self.assertEqual(e.check_endings(), 'hollow')
         self.assertIn('hard_win', e.meta.achievements)
-        s.set_defaults(); s.start_run('normal'); s.clean_streaks = 3
+        s.set_defaults()
+        s.start_run('normal')
+        s.clean_streaks = 3
         self.assertIsNone(e.check_endings(), 'Reformed needs some gambling first')
         s.stats['coin']['played'] = config.REFORMED_MIN_GAMES
         self.assertEqual(e.check_endings(), 'reformed')

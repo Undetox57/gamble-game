@@ -2,7 +2,7 @@
 import math
 
 from PyQt6.QtCore import QPointF, QPoint, QRectF, Qt, QTimer
-from PyQt6.QtGui import QColor, QConicalGradient, QLinearGradient, QPainter, QPen, QPixmap, QPolygonF
+from PyQt6.QtGui import QColor, QLinearGradient, QPainter, QPen, QPixmap, QPolygonF
 from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from .. import rules
@@ -811,7 +811,6 @@ class HorseTrack(QWidget):
             p.setOpacity(0.45)
         coat, silk = QColor(self.COATS[i]), QColor(self.SILKS[i])
         dark = coat.darker(140)
-        light = coat.lighter(125)
         bob = 3.0 * abs(math.sin(phase))                     # the body bounces with the gallop
         stretch = math.sin(phase * 0.5)                      # fore/hind reach, a rocking gallop
         p.translate(0, -bob)

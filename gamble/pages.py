@@ -12,7 +12,7 @@ from .config import (ACHIEVEMENTS, BANK_INTEREST, CLEAN_STREAKS_FOR_ENDING, CLEA
                      GAME_HOTKEYS, GAME_KEYS, GAME_NAMES, GAME_SUBTITLES, GOAL_LADDER_MULTS, ITEMS, JOBS,
                      LEVEL_EXP, LOBBY_ORDER,
                      MAX_BET, SHARK_CLEAN, SHARK_COLLECT_MENTAL, SHARK_COLLECT_SHARE, SHARK_DAYS,
-                     SHARK_RATE, STREAK_BETS, STREAK_P_MAX, TENURE_RANKS, TOURNAMENT_BONUS_RATE,
+                     SHARK_RATE, STREAK_BETS, STREAK_P_MAX, TOURNAMENT_BONUS_RATE,
                      TOURNAMENT_DAYS, TOURNAMENT_ENTRY, TOURNAMENT_SPRINT_BONUS_CAP,
                      TOURNAMENT_SPRINT_BONUS_RATE, TOURNAMENT_SPRINT_DAYS, TOURNAMENT_SPRINT_ENTRY, UNLOCK,
                      goal_for)
@@ -437,10 +437,10 @@ class StatsPage(QWidget):
             rows.append((tr(GAME_NAMES[k]), st['played'], st['won'], st['lost'], s.profit.get(k, 0)))
             tp, tw, tl = tp + st['played'], tw + st['won'], tl + st['lost']
         rows.append((tr('TOTAL'), tp, tw, tl, total_profit))
-        for r, (name, p, w, l, prof) in enumerate(rows):
+        for r, (name, p, w, lost, prof) in enumerate(rows):
             rate = f'{w / p * 100:.0f}%' if p else '-'
             color = '#4cc38a' if prof > 0 else '#ff6b6b' if prof < 0 else None
-            for c, val in enumerate((name, p, w, l, rate, f'{prof:+,}' if p else '-')):
+            for c, val in enumerate((name, p, w, lost, rate, f'{prof:+,}' if p else '-')):
                 put(self.table, r, c, val, color if c == 5 else None,
                     AC if c else Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
                 if r == len(rows) - 1:
@@ -564,7 +564,7 @@ class TrophyPage(QWidget):
         sprints = getattr(meta, 'sprints', {})
         rungs = getattr(meta, 'goal_rungs', {})     # D13: the deepest rung opened on any difficulty
         best = max(DIFFICULTIES, key=lambda d: rungs.get(d, 1))
-        gold, green, red = '#f4c542', '#4cc38a', '#ff6b6b'
+        gold, green = '#f4c542', '#4cc38a'
         items = ((tr('Best net worth ever'), f'{max(records.values()):,} TL' if max(records.values()) else '-',
                   gold),
                  (tr('Best tournament'), f'{max(tours.values()):,} TL' if max(tours.values()) else '-', gold),

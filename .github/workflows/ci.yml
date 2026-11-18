@@ -1,0 +1,33 @@
+name: CI
+
+# Every push and pull request runs the same gate a release uses (E batch, 1.1.5):
+# byte-compile everything, the unit tests, the Turkish translation check and ruff.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: python -m pip install --quiet PyQt6 ruff
+
+      - name: Byte-compile
+        run: python -m compileall -q gamble simulate.py tests tools
+
+      - name: Ruff lint
+        run: python -m ruff check gamble simulate.py tests tools
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Turkish translation check
+        run: python tools/i18n_check.py

@@ -1,4 +1,4 @@
-"""installer/GambleGame.ico üretir - oyunun pencere ikonuyla birebir aynı çip (D14).
+r"""installer/GambleGame.ico üretir - oyunun pencere ikonuyla birebir aynı çip (D14).
 
 Kullanım:  python tools\make_icon.py
 Çıktı:     installer\GambleGame.ico
@@ -25,7 +25,7 @@ OUT = os.path.join(ROOT, 'installer', 'GambleGame.ico')
 
 
 def main():
-    app = QApplication.instance() or QApplication([])
+    _app = QApplication.instance() or QApplication([])      # noqa: F841 - keeps the app alive while painting
     icon = app_icon()
     entries, blobs = [], b''
     offset = 6 + 16 * len(SIZES)                    # ICO header + one 16-byte entry per size

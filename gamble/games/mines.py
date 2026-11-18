@@ -1,9 +1,7 @@
 """Mines: uncover safe cells to grow the multiplier, and cash out before you step on a mine."""
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QButtonGroup, QCheckBox, QDoubleSpinBox, QGridLayout, QHBoxLayout, QLabel, QWidget
 
 from .. import rules
-from ..fx import VRNG
 from ..widgets import AC, Button, centered
 from .base import BaseGame, K, digit_key
 
